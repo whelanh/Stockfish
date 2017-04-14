@@ -137,7 +137,6 @@ namespace {
   };
 
   EasyMoveManager EasyMove;
-  bool study = Options["Study"];
   Value DrawValue[COLOR_NB];
 
   template <NodeType NT>
@@ -1012,8 +1011,8 @@ moves_loop: // When in check search starts from here
               r = std::max(DEPTH_ZERO, (r / ONE_PLY - ss->history / 20000) * ONE_PLY);
           }
 
-          if (study && ss->ply < depth / 2 - ONE_PLY)
-              r = DEPTH_ZERO;
+          if (newDepth - r + 8 * ONE_PLY < thisThread->rootDepth)
+              r = std::min(r, 3 * ONE_PLY);
 
           Depth d = std::max(newDepth - r, ONE_PLY);
 
