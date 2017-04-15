@@ -28,28 +28,22 @@
 
 TimeManagement Time; // Our global time management object
 
-namespace {
+// move_importance() is a skew-logistic function based on naive statistical
+// analysis of "how many games are still undecided after n half-moves". Game
+// is considered "undecided" as long as neither side has >275cp advantage.
+// Data was extracted from the CCRL game database with some simple filtering criteria.
 
-  enum TimeType { OptimumTime, MaxTime };
-
-  const int MoveHorizon   = 50;   // Plan time management at most this many moves ahead
-
-  // move_importance() is a skew-logistic function based on naive statistical
-  // analysis of "how many games are still undecided after n half-moves". Game
-  // is considered "undecided" as long as neither side has >275cp advantage.
-  // Data was extracted from the CCRL game database with some simple filtering criteria.
-
-  double move_importance(int ply) {
+double move_importance(int ply) {
 
     const double XScale = 7.64;
     const double XShift = 58.4;
     const double Skew   = 0.183;
 
     return pow((1 + exp((ply - XShift) / XScale)), -Skew) + DBL_MIN; // Ensure non-zero
-  }
+}
 
-  int remaining(int myTime, int movesToGo, int ply)
-  {
+int remaining(int myTime, int movesToGo, int ply) {
+
     double moveImportance = move_importance(ply);
     double otherMovesImportance = 0;
 
@@ -57,9 +51,7 @@ namespace {
         otherMovesImportance += move_importance(ply + 2 * i);
 
     return int(myTime * moveImportance / (moveImportance + otherMovesImportance));  // Intel C++ asks for an explicit cast
-  }
-
-} // namespace
+}
 
 
 /// init() is called at the beginning of the search and calculates the allowed
@@ -76,6 +68,7 @@ void TimeManagement::init(Search::LimitsType& limits, Color us, int ply) {
   int minThinkingTime = Options["Minimum Thinking Time"];
   int moveOverhead    = Options["Move Overhead"];
   int npmsec          = Options["nodestime"];
+  int MoveHorizon     = 50;   // Plan time management at most this many moves ahead
 
   // If we have to play in 'nodes as time' mode, then convert from time
   // to nodes, and use resulting values in time management formulas.
@@ -96,22 +89,13 @@ void TimeManagement::init(Search::LimitsType& limits, Color us, int ply) {
   optimumTime = maximumTime = std::max(limits.time[us] - 3 * moveOverhead, minThinkingTime);
 
   if (limits.movestogo)
-  {
-      int MaxMTG = std::min(limits.movestogo, MoveHorizon);
-      // Calculate thinking time for hypothetical "moves to go"-value
-      int hypMyTime = limits.time[us] + (limits.inc[us] - moveOverhead) * (MaxMTG - 1);
+      MoveHorizon = limits.movestogo - 1;
+  // Calculate thinking time for hypothetical "moves to go"-value
+  int hypMyTime = limits.time[us] + (limits.inc[us] - moveOverhead) * MoveHorizon;
 
-      optimumTime = std::min(remaining(hypMyTime, MaxMTG, ply), optimumTime);
-      maximumTime = std::min(6 * optimumTime, maximumTime);
-  }
+  optimumTime = std::min(remaining(hypMyTime, MoveHorizon, ply), optimumTime);
+  maximumTime = std::min(63 * optimumTime / 10, maximumTime);
 
-  else
-  {
-      int hypMyTime = limits.time[us] + (limits.inc[us] - moveOverhead) * MoveHorizon;
-
-      optimumTime = std::min(remaining(hypMyTime, MoveHorizon, ply), optimumTime);
-      maximumTime = std::min(6 * optimumTime, maximumTime);
-  }
 
   if (Options["Ponder"])
       optimumTime += optimumTime / 4;
