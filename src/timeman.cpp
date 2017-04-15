@@ -94,7 +94,7 @@ void TimeManagement::init(Search::LimitsType& limits, Color us, int ply) {
   int hypMyTime = limits.time[us] + (limits.inc[us] - moveOverhead) * MoveHorizon;
 
   optimumTime = std::min(remaining(hypMyTime, MoveHorizon, ply), optimumTime);
-  maximumTime = std::min(63 * optimumTime / 10, maximumTime);
+  maximumTime = std::min(67 * optimumTime / 10, maximumTime);
 
 
   if (Options["Ponder"])
