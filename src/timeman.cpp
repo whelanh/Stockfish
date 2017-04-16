@@ -44,7 +44,7 @@ double move_importance(int ply) {
 
 int remaining(int myTime, int movesToGo, int ply) {
 
-    double moveImportance = move_importance(ply);
+    double moveImportance = 89 * move_importance(ply) / 100;
     double otherMovesImportance = 0;
 
     for (int i = 1; i < movesToGo; ++i)
@@ -68,7 +68,7 @@ void TimeManagement::init(Search::LimitsType& limits, Color us, int ply) {
   int minThinkingTime = Options["Minimum Thinking Time"];
   int moveOverhead    = Options["Move Overhead"];
   int npmsec          = Options["nodestime"];
-  int MoveHorizon     = 50;   // Plan time management at most this many moves ahead
+  int MoveHorizon     = limits.movestogo ? std::min(limits.movestogo - 1, 50) : 50;
 
   // If we have to play in 'nodes as time' mode, then convert from time
   // to nodes, and use resulting values in time management formulas.
@@ -88,14 +88,11 @@ void TimeManagement::init(Search::LimitsType& limits, Color us, int ply) {
   startTime = limits.startTime;
   optimumTime = maximumTime = std::max(limits.time[us] - 3 * moveOverhead, minThinkingTime);
 
-  if (limits.movestogo)
-      MoveHorizon = limits.movestogo - 1;
   // Calculate thinking time for hypothetical "moves to go"-value
   int hypMyTime = limits.time[us] + (limits.inc[us] - moveOverhead) * MoveHorizon;
 
   optimumTime = std::min(remaining(hypMyTime, MoveHorizon, ply), optimumTime);
-  maximumTime = std::min(67 * optimumTime / 10, maximumTime);
-
+  maximumTime = std::min(7 * optimumTime, maximumTime);
 
   if (Options["Ponder"])
       optimumTime += optimumTime / 4;
