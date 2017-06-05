@@ -88,7 +88,7 @@ namespace {
 
     // kingRing[color] is the zone around the king which is considered
     // by the king safety evaluation. This consists of the squares directly
-    // adjacent to the king, and the three (or two, for a king on an edge file)
+    // adjacent to the king, and (only for a king on its first rank) the
     // squares two ranks in front of the king. For instance, if black's king
     // is on g8, kingRing[BLACK] is a bitboard containing the squares f8, h8,
     // f7, g7, h7, f6, g6 and h6.
@@ -240,9 +240,12 @@ namespace {
     ei.attackedBy[Us][ALL_PIECES] = b | ei.attackedBy[Us][PAWN];
 
     // Init our king safety tables only if we are going to use them
-    if (pos.non_pawn_material(Them) >= QueenValueMg)
+    if (pos.non_pawn_material(Them) >= RookValueMg + KnightValueMg)
     {
-        ei.kingRing[Us] = b | shift<Up>(b);
+        ei.kingRing[Us] = b;
+        if (relative_rank(Us, pos.square<KING>(Us)) == RANK_1)
+            ei.kingRing[Us] |= shift<Up>(b);
+
         ei.kingAttackersCount[Them] = popcount(b & ei.pe->pawn_attacks(Them));
         ei.kingAdjacentZoneAttacksCount[Them] = ei.kingAttackersWeight[Them] = 0;
     }
@@ -402,7 +405,7 @@ namespace {
     Score score = ei.pe->king_safety<Us>(pos, ksq);
 
     // Main king safety evaluation
-    if (ei.kingAttackersCount[Them])
+    if (ei.kingAttackersCount[Them] > (1 - pos.count<QUEEN>(Them)))
     {
         // Find the attacked squares which are defended only by our king...
         undefended =   ei.attackedBy[Them][ALL_PIECES]
@@ -423,7 +426,8 @@ namespace {
                     + 201 * popcount(undefended)
                     + 143 * (popcount(b) + !!pos.pinned_pieces(Us))
                     - 848 * !pos.count<QUEEN>(Them)
-                    -  28 * mg_value(score) / 25 - 5;
+                    -   9 * mg_value(score) / 8
+                    +  40;
 
         // Analyse the safe enemy's checks which are possible on next move
         safe  = ~pos.pieces(Them);
@@ -472,7 +476,7 @@ namespace {
 
         // Transform the kingDanger units into a Score, and substract it from the evaluation
         if (kingDanger > 0)
-            score -= make_score(kingDanger * kingDanger / 4096, 0);
+            score -= make_score(kingDanger * kingDanger / 4096, kingDanger / 16);
     }
 
     // King tropism: firstly, find squares that opponent attacks in our king flank
@@ -891,7 +895,7 @@ std::string Eval::trace(const Position& pos) {
      << "      Imbalance | " << Term(IMBALANCE)
      << "          Pawns | " << Term(PAWN)
      << "        Knights | " << Term(KNIGHT)
-     << "         Bishop | " << Term(BISHOP)
+     << "        Bishops | " << Term(BISHOP)
      << "          Rooks | " << Term(ROOK)
      << "         Queens | " << Term(QUEEN)
      << "       Mobility | " << Term(MOBILITY)
