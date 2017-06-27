@@ -477,7 +477,7 @@ Bitboard Position::slider_blockers(Bitboard sliders, Square s, Bitboard& pinners
   pinners = 0;
 
   // Snipers are sliders that attack 's' when a piece is removed
-  Bitboard snipers = (  (PseudoAttacks[ROOK  ][s] & pieces(QUEEN, ROOK))
+  Bitboard snipers = (  (PseudoAttacks[  ROOK][s] & pieces(QUEEN, ROOK))
                       | (PseudoAttacks[BISHOP][s] & pieces(QUEEN, BISHOP))) & sliders;
 
   while (snipers)
@@ -504,7 +504,7 @@ Bitboard Position::attackers_to(Square s, Bitboard occupied) const {
   return  (attacks_from<PAWN>(s, BLACK)    & pieces(WHITE, PAWN))
         | (attacks_from<PAWN>(s, WHITE)    & pieces(BLACK, PAWN))
         | (attacks_from<KNIGHT>(s)         & pieces(KNIGHT))
-        | (attacks_bb<ROOK  >(s, occupied) & pieces(ROOK,   QUEEN))
+        | (attacks_bb<  ROOK>(s, occupied) & pieces(  ROOK, QUEEN))
         | (attacks_bb<BISHOP>(s, occupied) & pieces(BISHOP, QUEEN))
         | (attacks_from<KING>(s)           & pieces(KING));
 }
@@ -1100,10 +1100,10 @@ bool Position::is_draw(int ply) const {
       stp = stp->previous->previous;
 
       // At root position ply is 1, so return a draw score if a position
-      // repeats once earlier but after or at the root, or repeats twice
-      // strictly before the root.
+      // repeats once earlier but strictly after the root, or repeats twice
+      // before or at the root.
       if (   stp->key == st->key
-          && ++cnt + (ply - i > 0) == 2)
+          && ++cnt + (ply - 1 > i) == 2)
           return true;
   }
 
