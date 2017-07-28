@@ -967,7 +967,7 @@ moves_loop: // When in check search starts from here
       if (    depth >= 3 * ONE_PLY
           &&  moveCount > 1
           && (!captureOrPromotion || moveCountPruning)
-          &&  thisThread->maxPly > depth
+          &&  thisThread->selDepth > depth
           && !(depth >= 16 * ONE_PLY && ss->ply <= 3 * ONE_PLY))
       {
           Depth r = reduction<PvNode>(improving, depth, moveCount);
