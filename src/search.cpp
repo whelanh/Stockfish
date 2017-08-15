@@ -183,10 +183,13 @@ void Search::init() {
 }
 
 
-/// Search::clear() resets search state to its initial value, to obtain reproducible results
+/// Search::clear() resets search state to its initial value
 
 void Search::clear() {
 
+  Threads.main()->wait_for_search_finished();
+
+  Time.availableNodes = 0;
   TT.clear();
 
   for (Thread* th : Threads)
@@ -250,7 +253,7 @@ void MainThread::search() {
 
   if (rootMoves.empty())
   {
-      rootMoves.push_back(RootMove(MOVE_NONE));
+      rootMoves.emplace_back(MOVE_NONE);
       sync_cout << "info depth 0 score "
                 << UCI::value(rootPos.checkers() ? -VALUE_MATE : VALUE_DRAW)
                 << sync_endl;
@@ -274,13 +277,13 @@ void MainThread::search() {
   // the UCI protocol states that we shouldn't print the best move before the
   // GUI sends a "stop" or "ponderhit" command. We therefore simply wait here
   // until the GUI sends one of those commands (which also raises Threads.stop).
-  if (!Threads.stop && (Limits.ponder || Limits.infinite))
-  {
-      Threads.stopOnPonderhit = true;
-      wait(Threads.stop);
-  }
+  Threads.stopOnPonderhit = true;
 
-  // Stop the threads if not already stopped
+  while (!Threads.stop && (Threads.ponder || Limits.infinite))
+  {} // Busy wait for a stop or a ponder reset
+
+  // Stop the threads if not already stopped (also raise the stop if
+  // "ponderhit" just reset Threads.ponder).
   Threads.stop = true;
 
   // Wait until all threads have finished
@@ -338,7 +341,6 @@ void Thread::search() {
 
   bestValue = delta = alpha = -VALUE_INFINITE;
   beta = VALUE_INFINITE;
-  completedDepth = DEPTH_ZERO;
 
   if (mainThread)
   {
@@ -496,7 +498,7 @@ void Thread::search() {
               {
                   // If we are allowed to ponder do not stop the search now but
                   // keep pondering until the GUI sends "ponderhit" or "stop".
-                  if (Limits.ponder)
+                  if (Threads.ponder)
                       Threads.stopOnPonderhit = true;
                   else
                       Threads.stop = true;
@@ -550,7 +552,7 @@ namespace {
     Value bestValue, value, ttValue, eval;
     bool ttHit, inCheck, givesCheck, singularExtensionNode, improving;
     bool captureOrPromotion, doFullDepthSearch, moveCountPruning, skipQuiets, ttCapture;
-    Piece moved_piece;
+    Piece movedPiece;
     int moveCount, quietCount;
 
     // Step 1. Initialize node
@@ -862,7 +864,7 @@ moves_loop: // When in check search starts from here
 
       extension = DEPTH_ZERO;
       captureOrPromotion = pos.capture_or_promotion(move);
-      moved_piece = pos.moved_piece(move);
+      movedPiece = pos.moved_piece(move);
 
       givesCheck =  type_of(move) == NORMAL && !pos.discovered_check_candidates()
                   ? pos.check_squares(type_of(pos.piece_on(from_sq(move)))) & to_sq(move)
@@ -920,8 +922,8 @@ moves_loop: // When in check search starts from here
 
               // Countermoves based pruning
               if (   lmrDepth < 3
-                  && (*contHist[0])[moved_piece][to_sq(move)] < CounterMovePruneThreshold
-                  && (*contHist[1])[moved_piece][to_sq(move)] < CounterMovePruneThreshold)
+                  && (*contHist[0])[movedPiece][to_sq(move)] < CounterMovePruneThreshold
+                  && (*contHist[1])[movedPiece][to_sq(move)] < CounterMovePruneThreshold)
                   continue;
 
               // Futility pruning: parent node
@@ -956,7 +958,7 @@ moves_loop: // When in check search starts from here
 
       // Update the current move (this must be done after singular extension search)
       ss->currentMove = move;
-      ss->contHistory = &thisThread->contHistory[moved_piece][to_sq(move)];
+      ss->contHistory = &thisThread->contHistory[movedPiece][to_sq(move)];
 
       // Step 14. Make the move
       pos.do_move(move, st, givesCheck);
@@ -991,9 +993,9 @@ moves_loop: // When in check search starts from here
                   r -= 2 * ONE_PLY;
 
               ss->statScore =  thisThread->mainHistory[~pos.side_to_move()][from_to(move)]
-                             + (*contHist[0])[moved_piece][to_sq(move)]
-                             + (*contHist[1])[moved_piece][to_sq(move)]
-                             + (*contHist[3])[moved_piece][to_sq(move)]
+                             + (*contHist[0])[movedPiece][to_sq(move)]
+                             + (*contHist[1])[movedPiece][to_sq(move)]
+                             + (*contHist[3])[movedPiece][to_sq(move)]
                              - 4000;
 
               // Decrease/increase reduction by comparing opponent's stat score
@@ -1505,7 +1507,7 @@ moves_loop: // When in check search starts from here
     }
 
     // An engine may not stop pondering until told so by the GUI
-    if (Limits.ponder)
+    if (Threads.ponder)
         return;
 
     if (   (Limits.use_time_management() && elapsed > Time.maximum() - 10)
