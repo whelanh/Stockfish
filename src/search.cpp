@@ -563,10 +563,22 @@ namespace {
     if (PvNode && thisThread->selDepth < ss->ply)
         thisThread->selDepth = ss->ply;
 
+    excludedMove = ss->excludedMove;
+    posKey = pos.key() ^ Key(excludedMove);
+    tte = TT.probe(posKey, ttHit);
+
     if (!rootNode)
     {
         // Step 2. Check for aborted search and immediate draw
-        if (Threads.stop.load(std::memory_order_relaxed) || pos.is_draw(ss->ply) || ss->ply >= MAX_PLY)
+        if (pos.is_draw(ss->ply))
+        {
+            tte->save(posKey, DrawValue[pos.side_to_move()], BOUND_EXACT,
+                              depth, MOVE_NONE, VALUE_NONE, TT.generation());
+
+            return DrawValue[pos.side_to_move()];
+        }
+
+        if (Threads.stop.load(std::memory_order_relaxed) || ss->ply >= MAX_PLY)
             return ss->ply >= MAX_PLY && !inCheck ? evaluate(pos)
                                                   : DrawValue[pos.side_to_move()];
 
@@ -576,10 +588,12 @@ namespace {
         // because we will never beat the current alpha. Same logic but with reversed
         // signs applies also in the opposite condition of being mated instead of giving
         // mate. In this case return a fail-high score.
-        alpha = std::max(mated_in(ss->ply), alpha);
-        beta = std::min(mate_in(ss->ply+1), beta);
-        if (alpha >= beta)
+        if (alpha >= mate_in(ss->ply+1))
+        {
+            tte->save(posKey, value_to_tt(alpha, ss->ply), BOUND_LOWER,
+                              depth, MOVE_NONE, VALUE_NONE, TT.generation());
             return alpha;
+        }
     }
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
@@ -592,9 +606,6 @@ namespace {
     // Step 4. Transposition table lookup. We don't want the score of a partial
     // search to overwrite a previous full search TT value, so we use a different
     // position key in case of an excluded move.
-    excludedMove = ss->excludedMove;
-    posKey = pos.key() ^ Key(excludedMove);
-    tte = TT.probe(posKey, ttHit);
     ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
     ttMove =  rootNode ? thisThread->rootMoves[thisThread->PVIdx].pv[0]
             : ttHit    ? tte->move() : MOVE_NONE;
@@ -649,16 +660,18 @@ namespace {
 
                 int drawScore = TB::UseRule50 ? 1 : 0;
 
+                int centiPly = PawnValueEg * (ss->ply - 1) / 100;
+
                 if (    abs(v) <= drawScore
                     || !ttHit
-                    || (v < -drawScore && ttValue > -VALUE_KNOWN_WIN)
-                    || (v >  drawScore && ttValue <  VALUE_KNOWN_WIN))
+                    || (v < -drawScore && ttValue > -VALUE_TB_WIN + centiPly + PawnValueEg * popcount(pos.pieces( pos.side_to_move())))
+                    || (v >  drawScore && ttValue <  VALUE_TB_WIN - centiPly - PawnValueEg * popcount(pos.pieces(~pos.side_to_move()))))
                 {
-                    value =  v < -drawScore ? -VALUE_MATE_IN_MAX_PLY + ss->ply + (pos.non_pawn_material(pos.side_to_move()) - pos.non_pawn_material(~pos.side_to_move())) / 256
-                           : v >  drawScore ?  VALUE_MATE_IN_MAX_PLY - ss->ply + (pos.non_pawn_material(pos.side_to_move()) - pos.non_pawn_material(~pos.side_to_move())) / 256
-                                            :  VALUE_DRAW + v * drawScore;
+                    value =  v < -drawScore ? -VALUE_TB_WIN + centiPly + PawnValueEg * popcount(pos.pieces( pos.side_to_move()))
+                           : v >  drawScore ?  VALUE_TB_WIN - centiPly - PawnValueEg * popcount(pos.pieces(~pos.side_to_move()))
+                                            :  DrawValue[pos.side_to_move()] - v < 0 ? 2 * Eval::Tempo : VALUE_ZERO;
 
-                    tte->save(posKey, value_to_tt(value, ss->ply),
+                    tte->save(posKey, value,
                               v > drawScore ? BOUND_LOWER : v < -drawScore ? BOUND_UPPER : BOUND_EXACT,
                               depth, MOVE_NONE, VALUE_NONE, TT.generation());
 
@@ -1191,6 +1204,9 @@ moves_loop: // When in check search starts from here
         return ss->ply >= MAX_PLY && !InCheck ? evaluate(pos)
                                               : DrawValue[pos.side_to_move()];
 
+    if (alpha >= mate_in(ss->ply+1))
+        return alpha;
+
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
     // Decide whether or not to include checks: this fixes also the type of
@@ -1535,7 +1551,7 @@ string UCI::pv(const Position& pos, Depth depth, Value alpha, Value beta) {
       Depth d = updated ? depth : depth - ONE_PLY;
       Value v = updated ? rootMoves[i].score : rootMoves[i].previousScore;
 
-      bool tb = TB::RootInTB && abs(v) < VALUE_MATE - MAX_PLY;
+      bool tb = TB::RootInTB && abs(v) < VALUE_TB_WIN - 5 * PawnValueEg;
       v = tb ? TB::Score : v;
 
       if (ss.rdbuf()->in_avail()) // Not at first line
@@ -1622,7 +1638,7 @@ void Tablebases::filter_root_moves(Position& pos, Search::RootMoves& rootMoves) 
         RootInTB = root_probe_wdl(pos, rootMoves, TB::Score);
 
     if (RootInTB && !UseRule50)
-        TB::Score =  TB::Score > VALUE_DRAW ?  VALUE_MATE - MAX_PLY - 1
-                   : TB::Score < VALUE_DRAW ? -VALUE_MATE + MAX_PLY + 1
+        TB::Score =  TB::Score > VALUE_DRAW ?  VALUE_TB_WIN - 5 * PawnValueEg
+                   : TB::Score < VALUE_DRAW ? -VALUE_TB_WIN + 5 * PawnValueEg
                                             :  VALUE_DRAW;
 }
