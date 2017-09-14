@@ -589,11 +589,7 @@ namespace {
         // signs applies also in the opposite condition of being mated instead of giving
         // mate. In this case return a fail-high score.
         if (alpha >= mate_in(ss->ply+1))
-        {
-            tte->save(posKey, value_to_tt(alpha, ss->ply), BOUND_LOWER,
-                              depth, MOVE_NONE, VALUE_NONE, TT.generation());
             return alpha;
-        }
     }
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
