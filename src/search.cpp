@@ -324,7 +324,7 @@ void MainThread::search() {
 
 void Thread::search() {
 
-  Stack stack[MAX_PLY+7], *ss = stack+4; // To allow referencing (ss-4) and (ss+2)
+  Stack stack[MAX_PLY+7], *ss = stack+4; // To reference from (ss-4) to (ss+2)
   Value bestValue, alpha, beta, delta;
   Move easyMove = MOVE_NONE;
   MainThread* mainThread = (this == Threads.main() ? Threads.main() : nullptr);
@@ -527,7 +527,7 @@ namespace {
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode, bool skipEarlyPruning) {
 
     const bool PvNode = NT == PV;
-    const bool rootNode = PvNode && (ss-1)->ply == 0;
+    const bool rootNode = PvNode && ss->ply == 0;
 
     assert(-VALUE_INFINITE <= alpha && alpha < beta && beta <= VALUE_INFINITE);
     assert(PvNode || (alpha == beta - 1));
@@ -553,15 +553,14 @@ namespace {
     moveCount = quietCount = ss->moveCount = 0;
     ss->statScore = 0;
     bestValue = -VALUE_INFINITE;
-    ss->ply = (ss-1)->ply + 1;
 
     // Check for the available remaining time
     if (thisThread == Threads.main())
         static_cast<MainThread*>(thisThread)->check_time();
 
-    // Used to send selDepth info to GUI
-    if (PvNode && thisThread->selDepth < ss->ply)
-        thisThread->selDepth = ss->ply;
+    // Used to send selDepth info to GUI (selDepth counts from 1, ply from 0)
+    if (PvNode && thisThread->selDepth < ss->ply + 1)
+        thisThread->selDepth = ss->ply + 1;
 
     excludedMove = ss->excludedMove;
     posKey = pos.key() ^ Key(excludedMove);
@@ -594,6 +593,7 @@ namespace {
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
+    (ss+1)->ply = ss->ply + 1;
     ss->currentMove = (ss+1)->excludedMove = bestMove = MOVE_NONE;
     ss->contHistory = &thisThread->contHistory[NO_PIECE][0];
     (ss+2)->killers[0] = (ss+2)->killers[1] = MOVE_NONE;
@@ -656,7 +656,7 @@ namespace {
 
                 int drawScore = TB::UseRule50 ? 1 : 0;
 
-                int centiPly = PawnValueEg * (ss->ply - 1) / 100;
+                int centiPly = PawnValueEg * ss->ply / 100;
 
                 if (    abs(v) <= drawScore
                     || !ttHit
@@ -1004,10 +1004,10 @@ moves_loop: // When in check search starts from here
                              - 4000;
 
               // Decrease/increase reduction by comparing opponent's stat score
-              if (ss->statScore > 0 && (ss-1)->statScore < 0)
+              if (ss->statScore >= 0 && (ss-1)->statScore < 0)
                   r -= ONE_PLY;
 
-              else if (ss->statScore < 0 && (ss-1)->statScore > 0)
+              else if ((ss-1)->statScore >= 0 && ss->statScore < 0)
                   r += ONE_PLY;
 
               // Decrease/increase reduction for moves with a good/bad history
@@ -1192,7 +1192,7 @@ moves_loop: // When in check search starts from here
     }
 
     ss->currentMove = bestMove = MOVE_NONE;
-    ss->ply = (ss-1)->ply + 1;
+    (ss+1)->ply = ss->ply + 1;
     moveCount = 0;
 
     // Check for an instant draw or if the maximum ply has been reached
@@ -1210,7 +1210,6 @@ moves_loop: // When in check search starts from here
     // only two types of depth in TT: DEPTH_QS_CHECKS or DEPTH_QS_NO_CHECKS.
     ttDepth = InCheck || depth >= DEPTH_QS_CHECKS ? DEPTH_QS_CHECKS
                                                   : DEPTH_QS_NO_CHECKS;
-
     // Transposition table lookup
     posKey = pos.key();
     tte = TT.probe(posKey, ttHit);
