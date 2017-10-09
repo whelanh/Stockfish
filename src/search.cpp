@@ -779,7 +779,7 @@ namespace {
     // much above beta, we can (almost) safely prune the previous move.
     if (   !PvNode
         &&  depth >= 5 * ONE_PLY
-        &&  ss->ply % 2 == 1
+        &&  ss->ply % 2 == 0
         &&  abs(beta) < VALUE_MATE_IN_MAX_PLY
         &&  abs(eval) < 2 * VALUE_KNOWN_WIN)
     {
@@ -971,7 +971,7 @@ moves_loop: // When in check search starts from here
           &&  moveCount > 1
           && (!captureOrPromotion || moveCountPruning)
           &&  thisThread->selDepth > depth
-          && !(depth >= 16 * ONE_PLY && ss->ply <= 3 * ONE_PLY))
+          && !(depth >= 16 * ONE_PLY && ss->ply < 3 * ONE_PLY))
       {
           Depth r = reduction<PvNode>(improving, depth, moveCount);
 
