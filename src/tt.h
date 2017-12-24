@@ -103,7 +103,7 @@ public:
   void resize(size_t mbSize);
   void clear();
 
-  // The lowest order bits of the key are used to get the index of the cluster
+  // The key is used to get the index of the cluster
   TTEntry* first_entry(const Key key) const {
     return &table[key & (clusterCount - 1)].entry[0];
   }
