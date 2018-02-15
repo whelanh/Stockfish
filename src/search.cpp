@@ -683,7 +683,7 @@ namespace {
             return v;
     }
 
-    // Step 7. Futility pruning: child node (skipped when in check)
+    // Step 8. Futility pruning: child node (skipped when in check)
     if (   !PvNode
         &&  depth < 7 * ONE_PLY
         &&  eval - futility_margin(depth) >= beta
@@ -862,7 +862,7 @@ moves_loop: // When in check, search starts from here
       // Calculate new depth for this move
       newDepth = depth - ONE_PLY + extension;
 
-      // Step 13. Pruning at shallow depth
+      // Step 14. Pruning at shallow depth
       if (  !PvNode
           && pos.non_pawn_material(pos.side_to_move())
           && bestValue > VALUE_MATED_IN_MAX_PLY)
