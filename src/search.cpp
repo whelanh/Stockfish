@@ -69,7 +69,9 @@ namespace {
   // Razor and futility margins
   const int RazorMargin1 = 590;
   const int RazorMargin2 = 604;
-  Value futility_margin(Depth d) { return Value(150 * d / ONE_PLY); }
+  Value futility_margin(Depth d, bool improving) {
+    return Value((175 - 50 * improving) * d / ONE_PLY);
+  }
 
   // Futility and reductions lookup tables, initialized at startup
   int FutilityMoveCounts[2][16]; // [improving][depth]
@@ -350,11 +352,8 @@ void Thread::search() {
               {
                 int contempt = baseContempt;
 
-                // Adjust contempt based on current situation
-                int sign = (bestValue > 0) - (bestValue < 0);
-                contempt +=  bestValue >  500 ?  70 :
-                             bestValue < -500 ? -70 :
-                             bestValue / 10 + sign * int(std::round(3.22 * log(1 + abs(bestValue))));
+                // Adjust contempt based on current bestValue (dynamic contempt)
+                contempt += int(std::round(48 * atan(float(bestValue) / 128)));
 
                 Eval::Contempt = (us == WHITE ?  make_score(contempt, contempt / 2)
                                               : -make_score(contempt, contempt / 2));
@@ -657,6 +656,7 @@ namespace {
     if (inCheck)
     {
         ss->staticEval = eval = VALUE_NONE;
+        improving = true;
         goto moves_loop;
     }
     else if (ttHit)
@@ -679,6 +679,9 @@ namespace {
         tte->save(posKey, VALUE_NONE, BOUND_NONE, DEPTH_NONE, MOVE_NONE,
                   ss->staticEval, TT.generation());
     }
+
+    improving =   ss->staticEval >= (ss-2)->staticEval
+               ||(ss-2)->staticEval == VALUE_NONE;
 
     if (skipEarlyPruning || !pos.non_pawn_material(pos.side_to_move()))
         goto moves_loop;
@@ -705,7 +708,7 @@ namespace {
     // Step 8. Futility pruning: child node (skipped when in check)
     if (   !PvNode
         &&  depth < 7 * ONE_PLY
-        &&  eval - futility_margin(depth) >= beta
+        &&  eval - futility_margin(depth, improving) >= beta
         &&  eval < VALUE_KNOWN_WIN) // Do not return unproven wins
         return eval;
 
@@ -820,9 +823,6 @@ moves_loop: // When in check, search starts from here
 
     MovePicker mp(pos, ttMove, depth, &thisThread->mainHistory, &thisThread->captureHistory, contHist, countermove, ss->killers);
     value = bestValue; // Workaround a bogus 'uninitialized' warning under gcc
-    improving =   ss->staticEval >= (ss-2)->staticEval
-            /* || ss->staticEval == VALUE_NONE Already implicit in the previous condition */
-               ||(ss-2)->staticEval == VALUE_NONE;
 
     singularExtensionNode =   !rootNode
                            &&  depth >= 8 * ONE_PLY
