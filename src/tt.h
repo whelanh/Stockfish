@@ -24,9 +24,9 @@
 #include "misc.h"
 #include "types.h"
 
-/// TTEntry struct is the 10 bytes transposition table entry, defined as below:
+/// TTEntry struct is the 16 bytes transposition table entry, defined as below:
 ///
-/// key        16 bit
+/// key        64 bit
 /// move       16 bit
 /// value      16 bit
 /// eval value 16 bit
@@ -39,7 +39,7 @@ struct TTEntry {
   Move  move()  const { return (Move )move16; }
   Value value() const { return (Value)value16; }
   Value eval()  const { return (Value)eval16; }
-  Depth depth() const { return (Depth)(depth8 * int(ONE_PLY)); }
+  Depth depth() const { return (Depth)((depth8 + DEPTH_NONE) * int(ONE_PLY)); }
   Bound bound() const { return (Bound)(genBound8 & 0x3); }
 
   void save(Key k, Value v, Bound b, Depth d, Move m, Value ev, uint8_t g) {
@@ -52,7 +52,7 @@ struct TTEntry {
 
     // Don't overwrite more valuable entries
     if (  (k != key)
-        || d / ONE_PLY > depth8 - 4
+        || (d - DEPTH_NONE) / ONE_PLY > depth8 - 4
      /* || g != (genBound8 & 0xFC) // Matching non-zero keys are already refreshed by probe() */
         || b == BOUND_EXACT)
     {
@@ -60,7 +60,7 @@ struct TTEntry {
         value16   = (int16_t)v;
         eval16    = (int16_t)ev;
         genBound8 = (uint8_t)(g | b);
-        depth8    = (int8_t)(d / ONE_PLY);
+        depth8    = (uint8_t)((d - DEPTH_NONE) / ONE_PLY);
     }
   }
 
@@ -72,7 +72,7 @@ private:
   int16_t  value16;
   int16_t  eval16;
   uint8_t  genBound8;
-  int8_t   depth8;
+  uint8_t  depth8;
 };
 
 
