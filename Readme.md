@@ -1,7 +1,7 @@
 ### Overview
 
 [![Build Status](https://travis-ci.org/official-stockfish/Stockfish.svg?branch=master)](https://travis-ci.org/official-stockfish/Stockfish)
-[![Build Status](https://ci.appveyor.com/api/projects/status/github/official-stockfish/Stockfish?svg=true)](https://ci.appveyor.com/project/mcostalba/stockfish)
+[![Build Status](https://ci.appveyor.com/api/projects/status/github/jhellis3/Stockfish?svg=true)](https://ci.appveyor.com/project/jhellis3/stockfish)
 
 Stockfish is a free UCI chess engine derived from Glaurung 2.1. It is
 not a complete chess program and requires some UCI-compatible GUI
@@ -98,11 +98,11 @@ for a quick reference.
 
 ### Resource For Understanding the Code Base
 
-* [Chess Programming Wiki](https://chessprogramming.wikispaces.com) has good overall chess engines explanations 
-(techniques used here are well explained like hash maps etc), it was 
+* [Chess Programming Wiki](https://chessprogramming.wikispaces.com) has good overall chess engines explanations
+(techniques used here are well explained like hash maps etc), it was
 also recommended by the [support team at stockfish.](http://support.stockfishchess.org/discussions/questions/1132-how-to-understand-stockfish-sources)
 
-* [Here](https://chessprogramming.wikispaces.com/Stockfish) you can find a set of features and techniques used by stockfish and each of them is explained at the wiki, however, it's a generic way rather than focusing on stockfish's own implementation, but it will still help you. 
+* [Here](https://chessprogramming.wikispaces.com/Stockfish) you can find a set of features and techniques used by stockfish and each of them is explained at the wiki, however, it's a generic way rather than focusing on stockfish's own implementation, but it will still help you.
 
 
 ### Terms of use
