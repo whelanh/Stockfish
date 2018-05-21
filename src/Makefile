@@ -22,7 +22,11 @@
 ### ==========================================================================
 
 ### Executable name
+ifeq ($(COMP),mingw)
+EXE = matefinder.exe
+else
 EXE = matefinder
+endif
 
 ### Installation dir definitions
 PREFIX = /usr/local
@@ -284,7 +288,7 @@ ifeq ($(optimize),yes)
 			CXXFLAGS += -fno-gcse -mthumb -march=armv7-a -mfloat-abi=softfp
 		endif
 	endif
-	
+
 	ifeq ($(comp),$(filter $(comp),gcc clang icc))
 		ifeq ($(KERNEL),Darwin)
 			CXXFLAGS += -mdynamic-no-pic
@@ -437,7 +441,7 @@ clean: objclean profileclean
 
 # clean binaries and objects
 objclean:
-	@rm -f $(EXE) $(EXE).exe *.o ./syzygy/*.o
+	@rm -f $(EXE) *.o ./syzygy/*.o
 
 # clean auxiliary profiling files
 profileclean:
