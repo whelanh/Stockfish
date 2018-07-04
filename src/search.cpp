@@ -513,18 +513,6 @@ namespace {
     constexpr bool PvNode = NT == PV;
     const bool rootNode = PvNode && ss->ply == 0;
 
-    // Check if we have an upcoming move which draws by repetition, or
-    // if the opponent had an alternative move earlier to this position.
-    if (   pos.rule50_count() >= 3
-        && alpha < VALUE_DRAW
-        && !rootNode
-        && pos.has_game_cycle(ss->ply))
-    {
-        alpha = VALUE_DRAW;
-        if (alpha >= beta)
-            return alpha;
-    }
-
     // Dive into quiescence search when the depth reaches zero
     if (depth < ONE_PLY)
         return qsearch<NT>(pos, ss, alpha, beta);
@@ -568,11 +556,25 @@ namespace {
 
     if (!rootNode)
     {
+        // Check if we have an upcoming move which draws by repetition, or
+        // if the opponent had an alternative move earlier to this position.
+        if (pos.has_game_cycle(ss->ply))
+        {
+            alpha = std::max(alpha, VALUE_DRAW);
+            if (VALUE_DRAW >= beta)
+            {
+                tte->save(posKey, VALUE_DRAW, BOUND_EXACT,
+                          depth, MOVE_NONE, VALUE_NONE, TT.generation());
+
+                return VALUE_DRAW;
+            }
+        }
+
         // Step 2. Check for aborted search and immediate draw
         if (pos.is_draw(ss->ply))
         {
             tte->save(posKey, VALUE_DRAW, BOUND_EXACT,
-                              depth, MOVE_NONE, VALUE_NONE, TT.generation());
+                      depth, MOVE_NONE, VALUE_NONE, TT.generation());
 
             return VALUE_DRAW;
         }
