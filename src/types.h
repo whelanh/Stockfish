@@ -175,7 +175,6 @@ enum Value : int {
   VALUE_ZERO      = 0,
   VALUE_DRAW      = 0,
   VALUE_KNOWN_WIN = 10000,
-  VALUE_TB_WIN    = 24240,
   VALUE_MATE      = 32000,
   VALUE_INFINITE  = 32001,
   VALUE_NONE      = 32002,
@@ -189,7 +188,9 @@ enum Value : int {
   RookValueMg   = 1286,  RookValueEg   = 1378,
   QueenValueMg  = 2528,  QueenValueEg  = 2698,
 
-  MidgameLimit  = 15258, EndgameLimit  = 3915
+  MidgameLimit  = 15258, EndgameLimit  = 3915,
+
+  VALUE_TB_WIN    = 101 * PawnValueEg
 };
 
 enum PieceType {

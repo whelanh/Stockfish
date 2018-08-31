@@ -1678,7 +1678,6 @@ void Tablebases::rank_root_moves(Position& pos, Search::RootMoves& rootMoves) {
     UseRule50 = bool(Options["Syzygy50MoveRule"]);
     ProbeDepth = int(Options["SyzygyProbeDepth"]) * ONE_PLY;
     Cardinality = int(Options["SyzygyProbeLimit"]);
-    bool dtz_available = true;
 
     // Tables with fewer pieces than SyzygyProbeLimit are searched with
     // ProbeDepth == DEPTH_ZERO
@@ -1696,7 +1695,6 @@ void Tablebases::rank_root_moves(Position& pos, Search::RootMoves& rootMoves) {
         if (!RootInTB)
         {
             // DTZ tables are missing; try to rank moves using WDL tables
-            dtz_available = false;
             RootInTB = root_probe_wdl(pos, rootMoves);
         }
     }
@@ -1706,10 +1704,6 @@ void Tablebases::rank_root_moves(Position& pos, Search::RootMoves& rootMoves) {
         // Sort moves according to TB rank
         std::sort(rootMoves.begin(), rootMoves.end(),
                   [](const RootMove &a, const RootMove &b) { return a.tbRank > b.tbRank; } );
-
-        // Probe during search only if DTZ is not available and we are winning
-        if (dtz_available || rootMoves[0].tbScore <= VALUE_DRAW)
-            Cardinality = 0;
     }
     else
     {
