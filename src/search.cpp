@@ -85,6 +85,13 @@ namespace {
     return d > 17 ? 0 : 29 * d * d + 138 * d - 134;
   }
 
+  // Add a small random component to draw evaluations to keep search dynamic
+  // and to avoid 3fold-blindness.
+  Value value_draw(Depth depth, Thread* thisThread) {
+    return depth < 4 ? VALUE_DRAW
+                     : VALUE_DRAW + Value(2 * (thisThread->nodes.load(std::memory_order_relaxed) % 2) - 1);
+  }
+
   // Skill structure is used to implement strength limit
   struct Skill {
     explicit Skill(int l) : level(l) {}
@@ -575,13 +582,13 @@ namespace {
         // if the opponent had an alternative move earlier to this position.
         if (pos.has_game_cycle(ss->ply))
         {
-            alpha = std::max(alpha, VALUE_DRAW);
-            if (VALUE_DRAW >= beta)
+            alpha = std::max(alpha, value_draw(depth, pos.this_thread()));
+            if (alpha >= beta)
             {
-                tte->save(posKey, VALUE_DRAW, BOUND_EXACT,
+                tte->save(posKey, alpha, BOUND_EXACT,
                           depth, MOVE_NONE, VALUE_NONE);
 
-                return VALUE_DRAW;
+                return alpha;
             }
         }
 
@@ -595,9 +602,8 @@ namespace {
         }
 
         if (Threads.stop.load(std::memory_order_relaxed) || ss->ply >= MAX_PLY)
-            return ss->ply >= MAX_PLY && !inCheck ? evaluate(pos) - 10 * ((ss-1)->statScore > 0)
+            return ss->ply >= MAX_PLY && !inCheck ? evaluate(pos)
                                                   : VALUE_DRAW;
-
 
         // Step 3. Mate distance pruning. Even if we mate at the next move our score
         // would be at best mate_in(ss->ply+1), but if alpha is already bigger because
@@ -760,7 +766,7 @@ namespace {
         && (ss-1)->currentMove != MOVE_NULL
         && (ss-1)->statScore < 23200
         &&  eval >= beta
-        &&  ss->staticEval >= beta - 36 * depth / ONE_PLY + 225
+        &&  pureStaticEval >= beta - 36 * depth / ONE_PLY + 225
         && !excludedMove
         &&  pos.non_pawn_material(us)
         && (ss->ply >= thisThread->nmpMinPly || us != thisThread->nmpColor)
@@ -770,7 +776,7 @@ namespace {
         assert(eval - beta >= 0);
 
         // Null move dynamic reduction based on depth and value
-        Depth R = ((823 + 67 * depth / ONE_PLY) / 256 + std::min((eval - beta) / PawnValueMg, 3)) * ONE_PLY;
+        Depth R = ((823 + 67 * depth / ONE_PLY) / 256 + std::min(int(eval - beta) / 200, 3)) * ONE_PLY;
 
         ss->currentMove = MOVE_NULL;
         ss->continuationHistory = &thisThread->continuationHistory[NO_PIECE][0];
@@ -870,7 +876,7 @@ moves_loop: // When in check, search starts from here
     value = bestValue; // Workaround a bogus 'uninitialized' warning under gcc
 
     skipQuiets = false;
-    ttCapture = false;
+    ttCapture = ttMove && pos.capture_or_promotion(ttMove);
     pvExact = PvNode && ttHit && tte->bound() == BOUND_EXACT;
 
     // Step 12. Loop through all pseudo-legal moves until no moves remain
@@ -912,7 +918,7 @@ moves_loop: // When in check, search starts from here
       // Singular extension search (~60 Elo). If all moves but one fail low on a
       // search of (alpha-s, beta-s), and just one fails high on (alpha, beta),
       // then that move is singular and should be extended. To verify this we do
-      // a reduced search on on all the other moves but the ttMove and if the
+      // a reduced search on all the other moves but the ttMove and if the
       // result is lower than ttValue minus a margin then we will extend the ttMove.
       if (    depth >= 8 * ONE_PLY
           &&  move == ttMove
@@ -932,7 +938,6 @@ moves_loop: // When in check, search starts from here
               extension = ONE_PLY;
       }
       else if (    givesCheck // Check extension (~2 Elo)
-               && !moveCountPruning
                &&  pos.see_ge(move))
           extension = ONE_PLY;
 
@@ -988,9 +993,6 @@ moves_loop: // When in check, search starts from here
           ss->moveCount = --moveCount;
           continue;
       }
-
-      if (move == ttMove && captureOrPromotion)
-          ttCapture = true;
 
       // Update the current move (this must be done after singular extension search)
       ss->currentMove = move;
@@ -1140,6 +1142,8 @@ moves_loop: // When in check, search starts from here
                   break;
               }
           }
+          else if (PvNode && !rootNode && value == alpha)
+              update_pv(ss->pv, move, (ss+1)->pv);
       }
 
       if (move != bestMove)
