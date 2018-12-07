@@ -23,9 +23,9 @@
 
 ### Executable name
 ifeq ($(COMP),mingw)
-EXE = matefinder.exe
+EXE = crystal.exe
 else
-EXE = matefinder
+EXE = crystal
 endif
 
 ### Installation dir definitions
