@@ -288,7 +288,7 @@ namespace {
         }
     }
 
-    if (Type != CAPTURES && Type != EVASIONS && pos.can_castle(Us))
+    if (Type != CAPTURES && Type != EVASIONS && pos.castling_rights(Us))
     {
         if (pos.is_chess960())
         {
