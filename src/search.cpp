@@ -823,7 +823,7 @@ namespace {
 
            while (  (move = mp.next_move()) != MOVE_NONE
                   && probCutCount < 3)
-               if (move != excludedMove && pos.legal(move))
+               if (move != excludedMove)
                {
                    probCutCount++;
 
@@ -891,9 +891,6 @@ moves_loop: // When in check, search starts from here
       // of lower "TB rank" if we are in a TB root position.
       if (rootNode && !std::count(thisThread->rootMoves.begin() + thisThread->pvIdx,
                                   thisThread->rootMoves.begin() + thisThread->pvLast, move))
-          continue;
-
-      if (!rootNode && !pos.legal(move))
           continue;
 
       ss->moveCount = ++moveCount;
@@ -984,7 +981,7 @@ moves_loop: // When in check, search starts from here
           }
           else if (   !extension // (~20 Elo)
                    && !pos.see_ge(move, -PawnValueEg * (depth / ONE_PLY)))
-                  continue;
+                   continue;
       }
 
       // Speculative prefetch as early as possible
@@ -997,6 +994,10 @@ moves_loop: // When in check, search starts from here
       // Step 15. Make the move
       pos.do_move(move, st, givesCheck);
 
+      if (givesCheck && MoveList<LEGAL>(pos).size() == 0)
+          value = mate_in(ss->ply+1);
+      else
+      {
       // Step 16. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
       if (    depth >= 3 * ONE_PLY
@@ -1064,6 +1065,7 @@ moves_loop: // When in check, search starts from here
       // Step 17. Full depth search when LMR is skipped or fails high
       if (doFullDepthSearch)
           value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth, !cutNode);
+      }
 
       // For PV nodes only, do a full PV search on the first move or after a fail
       // high (in the latter case search only if value < beta), otherwise let the
@@ -1335,9 +1337,6 @@ moves_loop: // When in check, search starts from here
     {
       assert(is_ok(move));
 
-      if (!pos.legal(move))
-          continue;
-
       givesCheck = gives_check(pos, move);
 
       moveCount++;
@@ -1387,7 +1386,10 @@ moves_loop: // When in check, search starts from here
 
       // Make and search the move
       pos.do_move(move, st, givesCheck);
-      value = -qsearch<NT>(pos, ss+1, -beta, -alpha, depth - ONE_PLY);
+      if (givesCheck && MoveList<LEGAL>(pos).size() == 0)
+          value = mate_in(ss->ply+1);
+      else
+          value = -qsearch<NT>(pos, ss+1, -beta, -alpha, depth - ONE_PLY);
       pos.undo_move(move);
 
       assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
