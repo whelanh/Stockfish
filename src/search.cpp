@@ -748,6 +748,7 @@ namespace {
 
     // Begin early pruning.
     if (   !PvNode
+        && !excludedMove
         &&  abs(eval) < 2 * VALUE_KNOWN_WIN)
     {
        // Step 7. Razoring (~2 Elo)
@@ -771,7 +772,6 @@ namespace {
            && (ss-1)->statScore < 23200
            &&  eval >= beta
            &&  pureStaticEval >= beta - 36 * depth / ONE_PLY + 225
-           && !excludedMove
            &&  pos.non_pawn_material(us)
            && (ss->ply >= thisThread->nmpMinPly || us != thisThread->nmpColor)
            && !(depth > 4 * ONE_PLY && (MoveList<LEGAL, KING>(pos).size() < 1 || MoveList<LEGAL>(pos).size() < 6)))
@@ -912,6 +912,25 @@ moves_loop: // When in check, search starts from here
       movedPiece = pos.moved_piece(move);
       givesCheck = gives_check(pos, move);
 
+      pos.do_move(move, st, givesCheck);
+      bool isMate = pos.is_mate();
+      pos.undo_move(move);
+
+      if (isMate)
+      {
+          ss->currentMove = move;
+          ss->continuationHistory = &thisThread->continuationHistory[movedPiece][to_sq(move)];
+          value = mate_in(ss->ply+1);
+
+          if (PvNode && (moveCount == 1 || (value > alpha && (rootNode || value < beta))))
+          {
+              (ss+1)->pv = pv;
+              (ss+1)->pv[0] = MOVE_NONE;
+          }
+      }
+      else
+      {
+      --thisThread->nodes;
       moveCountPruning =   depth < 16 * ONE_PLY
                         && moveCount >= FutilityMoveCounts[improving][depth / ONE_PLY];
 
@@ -975,7 +994,7 @@ moves_loop: // When in check, search starts from here
                   continue;
 
               // Futility pruning: parent node (~2 Elo)
-              if (   lmrDepth < 7
+              if (   lmrDepth < 3
                   && !inCheck
                   && ss->staticEval + 256 + 200 * lmrDepth <= alpha)
                   continue;
@@ -999,17 +1018,12 @@ moves_loop: // When in check, search starts from here
       // Step 15. Make the move
       pos.do_move(move, st, givesCheck);
 
-      if (givesCheck && MoveList<LEGAL>(pos).size() == 0)
-          value = mate_in(ss->ply+1);
-      else
-      {
       // Step 16. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
       if (    depth >= 3 * ONE_PLY
           &&  moveCount > 1
           && (!captureOrPromotion || moveCountPruning)
-          &&  thisThread->selDepth > depth
-          && !(depth >= 16 * ONE_PLY && ss->ply < 3 * ONE_PLY))
+          &&  thisThread->selDepth > depth)
       {
           Depth r = reduction<PvNode>(improving, depth, moveCount);
 
@@ -1055,8 +1069,9 @@ moves_loop: // When in check, search starts from here
               r -= ss->statScore / 20000 * ONE_PLY;
           }
 
-          if (newDepth - r + 8 * ONE_PLY < thisThread->rootDepth)
-              r = std::min(r, 3 * ONE_PLY);
+          Depth rr = newDepth / (3 + ss->ply);
+
+          r -= rr;
 
           Depth d = std::max(newDepth - std::max(r, DEPTH_ZERO), ONE_PLY);
 
@@ -1070,7 +1085,6 @@ moves_loop: // When in check, search starts from here
       // Step 17. Full depth search when LMR is skipped or fails high
       if (doFullDepthSearch)
           value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth, !cutNode);
-      }
 
       // For PV nodes only, do a full PV search on the first move or after a fail
       // high (in the latter case search only if value < beta), otherwise let the
@@ -1085,6 +1099,7 @@ moves_loop: // When in check, search starts from here
 
       // Step 18. Undo move
       pos.undo_move(move);
+      }
 
       assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
@@ -1391,10 +1406,7 @@ moves_loop: // When in check, search starts from here
 
       // Make and search the move
       pos.do_move(move, st, givesCheck);
-      if (givesCheck && MoveList<LEGAL>(pos).size() == 0)
-          value = mate_in(ss->ply+1);
-      else
-          value = -qsearch<NT>(pos, ss+1, -beta, -alpha, depth - ONE_PLY);
+      value = -qsearch<NT>(pos, ss+1, -beta, -alpha, depth - ONE_PLY);
       pos.undo_move(move);
 
       assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
