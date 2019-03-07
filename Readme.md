@@ -1,6 +1,6 @@
 ## Overview
 
-[![Build Status](https://travis-ci.org/official-stockfish/Stockfish.svg?branch=master)](https://travis-ci.org/official-stockfish/Stockfish)
+[![Build Status](https://travis-ci.org/jhellis3/Stockfish.svg?branch=crystal)](https://travis-ci.org/jhellis3/Stockfish)
 [![Build status](https://ci.appveyor.com/api/projects/status/otcib5mgfnei11jo/branch/crystal?svg=true)](https://ci.appveyor.com/project/jhellis3/stockfish/branch/crystal)
 
 [Stockfish](https://stockfishchess.org) is a free, powerful UCI chess engine
