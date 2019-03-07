@@ -736,7 +736,7 @@ namespace {
        if (   depth < 2 * ONE_PLY
            && eval <= alpha - RazorMargin)
        {
-           Value q = qsearch<NT>(pos, ss, alpha, beta);
+           Value q = qsearch<NonPV>(pos, ss, alpha, beta);
 
            if (q <= alpha)
                return q;
@@ -1320,8 +1320,7 @@ moves_loop: // When in check, search starts from here
                 tte->save(posKey, value_to_tt(bestValue, ss->ply), pvHit, BOUND_LOWER,
                           DEPTH_NONE, MOVE_NONE, ss->staticEval);
 
-            if (!PvNode)
-                return bestValue;
+            return bestValue;
         }
 
         if (PvNode && bestValue > alpha)
