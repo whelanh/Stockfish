@@ -39,7 +39,7 @@ matrix:
 
 branches:
   only:
-   - master
+   - crystal
 
 before_script:
   - cd src
