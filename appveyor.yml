@@ -37,7 +37,7 @@ before_build:
 
       # Build CMakeLists.txt
       $t = 'cmake_minimum_required(VERSION 3.8)',
-           'project(Crystal)',
+           'project(Stockfish)',
            'set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/src)',
            'set(source_files', $src, ')',
            'add_executable(crystal ${source_files})'
