@@ -809,7 +809,7 @@ namespace {
 
            while (  (move = mp.next_move()) != MOVE_NONE
                   && probCutCount < 2 + 2 * cutNode)
-               if (move != excludedMove && pos.legal(move))
+               if (move != excludedMove)
                {
                    probCutCount++;
 
