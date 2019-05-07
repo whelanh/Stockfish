@@ -876,11 +876,9 @@ moves_loop: // When in check, search starts from here
       captureOrPromotion = pos.capture_or_promotion(move);
       movedPiece = pos.moved_piece(move);
       givesCheck = pos.gives_check(move);
-      bool isMate = false;
 
       pos.do_move(move, st, givesCheck);
-      if (pos.checkers())
-          isMate = pos.is_mate();
+      bool isMate = pos.is_mate();
       pos.undo_move(move);
 
       if (isMate)
@@ -897,6 +895,7 @@ moves_loop: // When in check, search starts from here
       }
       else
       {
+      thisThread->nodes.fetch_sub(1, std::memory_order_relaxed);
 
       // Step 13. Extensions (~70 Elo)
 
@@ -955,9 +954,6 @@ moves_loop: // When in check, search starts from here
 
       // Calculate new depth for this move
       newDepth = depth - ONE_PLY + extension;
-
-      // If we did not multi-cut return, only count moves once (already incremented from previous mate check).
-      thisThread->nodes.fetch_sub(1, std::memory_order_relaxed);
 
       // Step 14. Pruning at shallow depth (~170 Elo)
       if (  !PvNode
