@@ -664,6 +664,9 @@ bool Position::pseudo_legal(const Move m) const {
 
 bool Position::is_mate() const {
 
+if (!checkers())
+    return false;
+
 if (MoveList<LEGAL>(*this).size() > 0)
     return false;
 
