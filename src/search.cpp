@@ -883,9 +883,6 @@ moves_loop: // When in check, search starts from here
           pos.do_move(move, st, givesCheck);
           isMate = MoveList<LEGAL>(pos).size() == 0;
           pos.undo_move(move);
-
-          if (!isMate)
-              --thisThread->nodes;
       }
 
       if (isMate)
@@ -1000,6 +997,10 @@ moves_loop: // When in check, search starts from here
           else if (!pos.see_ge(move, -PawnValueEg * (depth / ONE_PLY))) // (~20 Elo)
                   continue;
       }
+
+      // If we did not late prune, only count checking moves once (already incremented from previous mate check).
+      if (givesCheck)
+          --thisThread->nodes;
 
       // Speculative prefetch as early as possible
       prefetch(TT.first_entry(pos.key_after(move)));
