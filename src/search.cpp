@@ -881,7 +881,7 @@ moves_loop: // When in check, search starts from here
       if (givesCheck)
       {
           pos.do_move(move, st, givesCheck);
-          isMate = MoveList<LEGAL>(pos).size() == 0;
+          isMate = pos.is_mate();
           pos.undo_move(move);
       }
 
