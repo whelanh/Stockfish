@@ -514,7 +514,7 @@ namespace {
     Move ttMove, move, excludedMove, bestMove;
     Depth extension, newDepth;
     Value bestValue, value, ttValue, eval;
-    bool ttHit, ttPv, inCheck, givesCheck, improving, isMate;
+    bool ttHit, ttPv, inCheck, givesCheck, improving;
     bool captureOrPromotion, doFullDepthSearch, moveCountPruning, ttCapture;
     Piece movedPiece;
     int moveCount, captureCount, quietCount;
@@ -876,14 +876,12 @@ moves_loop: // When in check, search starts from here
       captureOrPromotion = pos.capture_or_promotion(move);
       movedPiece = pos.moved_piece(move);
       givesCheck = pos.gives_check(move);
-      isMate = false;
+      bool isMate = false;
 
-      if (givesCheck)
-      {
-          pos.do_move(move, st, givesCheck);
+      pos.do_move(move, st, givesCheck);
+      if (pos.checkers())
           isMate = pos.is_mate();
-          pos.undo_move(move);
-      }
+      pos.undo_move(move);
 
       if (isMate)
       {
@@ -958,6 +956,9 @@ moves_loop: // When in check, search starts from here
       // Calculate new depth for this move
       newDepth = depth - ONE_PLY + extension;
 
+      // If we did not multi-cut return, only count moves once (already incremented from previous mate check).
+      thisThread->nodes.fetch_sub(1, std::memory_order_relaxed);
+
       // Step 14. Pruning at shallow depth (~170 Elo)
       if (  !PvNode
           && pos.non_pawn_material(us)
@@ -1007,10 +1008,6 @@ moves_loop: // When in check, search starts from here
 
       // Step 15. Make the move
       pos.do_move(move, st, givesCheck);
-
-      // If we did not late prune, only count checking moves once (already incremented from previous mate check).
-      if (givesCheck)
-          thisThread->nodes.fetch_sub(1, std::memory_order_relaxed);
 
       // Step 16. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
