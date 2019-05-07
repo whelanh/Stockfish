@@ -514,7 +514,7 @@ namespace {
     Move ttMove, move, excludedMove, bestMove;
     Depth extension, newDepth;
     Value bestValue, value, ttValue, eval;
-    bool ttHit, ttPv, inCheck, givesCheck, improving;
+    bool ttHit, ttPv, inCheck, givesCheck, improving, isMate;
     bool captureOrPromotion, doFullDepthSearch, moveCountPruning, ttCapture;
     Piece movedPiece;
     int moveCount, captureCount, quietCount;
@@ -876,10 +876,17 @@ moves_loop: // When in check, search starts from here
       captureOrPromotion = pos.capture_or_promotion(move);
       movedPiece = pos.moved_piece(move);
       givesCheck = pos.gives_check(move);
+      isMate = false;
 
-      pos.do_move(move, st, givesCheck);
-      bool isMate = pos.is_mate();
-      pos.undo_move(move);
+      if (givesCheck)
+      {
+          pos.do_move(move, st, givesCheck);
+          isMate = MoveList<LEGAL>(pos).size() == 0;
+          pos.undo_move(move);
+
+          if (!isMate)
+              --thisThread->nodes;
+      }
 
       if (isMate)
       {
@@ -895,7 +902,6 @@ moves_loop: // When in check, search starts from here
       }
       else
       {
-      --thisThread->nodes;
 
       // Step 13. Extensions (~70 Elo)
 
