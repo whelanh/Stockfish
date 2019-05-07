@@ -876,13 +876,18 @@ moves_loop: // When in check, search starts from here
       captureOrPromotion = pos.capture_or_promotion(move);
       movedPiece = pos.moved_piece(move);
       givesCheck = pos.gives_check(move);
+      bool isMate = false;
 
-      pos.do_move(move, st, givesCheck);
-      bool isMate = pos.is_mate();
-      pos.undo_move(move);
+      if (givesCheck)
+      {
+          pos.do_move(move, st, givesCheck);
+          isMate = MoveList<LEGAL>(pos).size() == 0;
+          pos.undo_move(move);
+      }
 
       if (isMate)
       {
+          thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
           ss->currentMove = move;
           ss->continuationHistory = &thisThread->continuationHistory[movedPiece][to_sq(move)];
           value = mate_in(ss->ply+1);
@@ -895,7 +900,6 @@ moves_loop: // When in check, search starts from here
       }
       else
       {
-      thisThread->nodes.fetch_sub(1, std::memory_order_relaxed);
 
       // Step 13. Extensions (~70 Elo)
 
@@ -912,7 +916,7 @@ moves_loop: // When in check, search starts from here
           && (tte->bound() & BOUND_LOWER)
           &&  tte->depth() >= depth - 3 * ONE_PLY)
       {
-          Value singularBeta = std::max(ttValue - 2 * depth / ONE_PLY, mated_in(ss->ply));
+          Value singularBeta = std::max(ttValue - 2 * depth, mated_in(ss->ply));
           Depth halfDepth = depth / (2 * ONE_PLY) * ONE_PLY; // ONE_PLY invariant
           ss->excludedMove = move;
           value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, halfDepth, cutNode);
@@ -1004,6 +1008,7 @@ moves_loop: // When in check, search starts from here
 
       // Step 15. Make the move
       pos.do_move(move, st, givesCheck);
+      thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
 
       // Step 16. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
@@ -1392,6 +1397,7 @@ moves_loop: // When in check, search starts from here
 
       // Make and search the move
       pos.do_move(move, st, givesCheck);
+      thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
       value = -qsearch<NT>(pos, ss+1, -beta, -alpha, depth - ONE_PLY);
       pos.undo_move(move);
 
