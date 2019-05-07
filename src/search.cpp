@@ -998,10 +998,6 @@ moves_loop: // When in check, search starts from here
                   continue;
       }
 
-      // If we did not late prune, only count checking moves once (already incremented from previous mate check).
-      if (givesCheck)
-          --thisThread->nodes;
-
       // Speculative prefetch as early as possible
       prefetch(TT.first_entry(pos.key_after(move)));
 
@@ -1011,6 +1007,10 @@ moves_loop: // When in check, search starts from here
 
       // Step 15. Make the move
       pos.do_move(move, st, givesCheck);
+
+      // If we did not late prune, only count checking moves once (already incremented from previous mate check).
+      if (givesCheck)
+          thisThread->nodes.fetch_sub(1, std::memory_order_relaxed);
 
       // Step 16. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
