@@ -1016,7 +1016,7 @@ moves_loop: // When in check, search starts from here
       if (    depth >= 3 * ONE_PLY
           &&  moveCount > 1
           && (!captureOrPromotion || moveCountPruning || ss->staticEval + PieceValue[EG][pos.captured_piece()] <= alpha)
-          &&  thisThread->selDepth > depth)
+          &&  thisThread->selDepth > depth / ONE_PLY)
       {
           Depth r = reduction<PvNode>(improving, depth, moveCount);
 
