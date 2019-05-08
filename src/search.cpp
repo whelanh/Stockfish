@@ -918,7 +918,7 @@ moves_loop: // When in check, search starts from here
           && (tte->bound() & BOUND_LOWER)
           &&  tte->depth() >= depth - 3 * ONE_PLY)
       {
-          Value singularBeta = std::max(ttValue - 2 * depth, mated_in(ss->ply));
+          Value singularBeta = std::max(ttValue - 2 * depth / ONE_PLY, mated_in(ss->ply));
           Depth halfDepth = depth / (2 * ONE_PLY) * ONE_PLY; // ONE_PLY invariant
           ss->excludedMove = move;
           value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, halfDepth, cutNode);
@@ -1016,7 +1016,7 @@ moves_loop: // When in check, search starts from here
       if (    depth >= 3 * ONE_PLY
           &&  moveCount > 1
           && (!captureOrPromotion || moveCountPruning || ss->staticEval + PieceValue[EG][pos.captured_piece()] <= alpha)
-          &&  thisThread->selDepth > depth / ONE_PLY)
+          &&  thisThread->selDepth * ONE_PLY > depth)
       {
           Depth r = reduction<PvNode>(improving, depth, moveCount);
 
