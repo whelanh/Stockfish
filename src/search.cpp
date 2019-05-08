@@ -1062,7 +1062,7 @@ moves_loop: // When in check, search starts from here
               r -= ss->statScore / 20000 * ONE_PLY;
           }
 
-          Depth rr = newDepth / (3 + ss->ply);
+          Depth rr = newDepth / (3 * ONE_PLY + ss->ply);
 
           r -= rr;
 
