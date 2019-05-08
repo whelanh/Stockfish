@@ -514,7 +514,7 @@ namespace {
     Move ttMove, move, excludedMove, bestMove;
     Depth extension, newDepth;
     Value bestValue, value, ttValue, eval;
-    bool ttHit, ttPv, inCheck, givesCheck, improving;
+    bool ttHit, ttPv, inCheck, givesCheck, improving, isMate;
     bool captureOrPromotion, doFullDepthSearch, moveCountPruning, ttCapture;
     Piece movedPiece;
     int moveCount, captureCount, quietCount;
@@ -876,18 +876,20 @@ moves_loop: // When in check, search starts from here
       captureOrPromotion = pos.capture_or_promotion(move);
       movedPiece = pos.moved_piece(move);
       givesCheck = pos.gives_check(move);
-      bool isMate = false;
+      isMate = false;
 
       if (givesCheck)
       {
           pos.do_move(move, st, givesCheck);
           isMate = MoveList<LEGAL>(pos).size() == 0;
           pos.undo_move(move);
+
+          if (!isMate) // Don't double count nodes
+              thisThread->nodes.fetch_sub(1, std::memory_order_relaxed);
       }
 
       if (isMate)
       {
-          thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
           ss->currentMove = move;
           ss->continuationHistory = &thisThread->continuationHistory[movedPiece][to_sq(move)];
           value = mate_in(ss->ply+1);
@@ -1008,7 +1010,6 @@ moves_loop: // When in check, search starts from here
 
       // Step 15. Make the move
       pos.do_move(move, st, givesCheck);
-      thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
 
       // Step 16. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
@@ -1397,7 +1398,6 @@ moves_loop: // When in check, search starts from here
 
       // Make and search the move
       pos.do_move(move, st, givesCheck);
-      thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
       value = -qsearch<NT>(pos, ss+1, -beta, -alpha, depth - ONE_PLY);
       pos.undo_move(move);
 
