@@ -32,11 +32,11 @@ namespace {
   #define S(mg, eg) make_score(mg, eg)
 
   // Pawn penalties
-  constexpr Score Backward = S( 9, 24);
-  constexpr Score Doubled  = S(11, 56);
-  constexpr Score Isolated = S( 5, 15);
-  constexpr Score WeakUnopposed = S( 13, 27);
-  constexpr Score Attacked2Unsupported = S( 0, 20);
+  constexpr Score Backward      = S( 9, 24);
+  constexpr Score Doubled       = S(11, 56);
+  constexpr Score Isolated      = S( 5, 15);
+  constexpr Score WeakLever     = S( 0, 56);
+  constexpr Score WeakUnopposed = S(13, 27);
 
   // Connected pawn bonus
   constexpr int Connected[RANK_NB] = { 0, 7, 8, 12, 29, 48, 86 };
@@ -70,24 +70,21 @@ namespace {
     constexpr Color     Them = (Us == WHITE ? BLACK : WHITE);
     constexpr Direction Up   = (Us == WHITE ? NORTH : SOUTH);
 
-    Bitboard b, neighbours, stoppers, doubled, support, phalanx;
+    Bitboard neighbours, stoppers, doubled, support, phalanx;
     Bitboard lever, leverPush;
     Square s;
-    bool opposed, backward;
+    bool opposed, backward, passed;
     Score score = SCORE_ZERO;
     const Square* pl = pos.squares<PAWN>(Us);
 
     Bitboard ourPawns   = pos.pieces(  Us, PAWN);
     Bitboard theirPawns = pos.pieces(Them, PAWN);
 
+    Bitboard doubleAttackThem = pawn_double_attacks_bb<Them>(theirPawns);
+
     e->passedPawns[Us] = e->pawnAttacksSpan[Us] = 0;
     e->kingSquares[Us] = SQ_NONE;
     e->pawnAttacks[Us] = pawn_attacks_bb<Us>(ourPawns);
-
-    // Unsupported enemy pawns attacked twice by us
-    score += Attacked2Unsupported * popcount(  theirPawns
-                                             & pawn_double_attacks_bb<Us>(ourPawns)
-                                             & ~pawn_attacks_bb<Them>(theirPawns));
 
     // Loop through all pawns of the current color and score each pawn
     while ((s = *pl++) != SQ_NONE)
@@ -108,26 +105,26 @@ namespace {
         phalanx    = neighbours & rank_bb(s);
         support    = neighbours & rank_bb(s - Up);
 
-        // A pawn is backward when it is behind all pawns of the same color
-        // on the adjacent files and cannot be safely advanced.
-        backward =  !(ourPawns & pawn_attack_span(Them, s + Up))
+        // A pawn is backward when it is behind all pawns of the same color on
+        // the adjacent files and cannot safely advance. Phalanx and isolated
+        // pawns will be excluded when the pawn is scored.
+        backward =  !(neighbours & forward_ranks_bb(Them, s))
                   && (stoppers & (leverPush | (s + Up)));
 
-        // Passed pawns will be properly scored in evaluation because we need
-        // full attack info to evaluate them. Include also not passed pawns
-        // which could become passed after one or two pawn pushes when are
-        // not attacked more times than defended.
-        if (   !(stoppers ^ lever) ||
-              (!(stoppers ^ leverPush) && popcount(phalanx) >= popcount(leverPush)))
-            e->passedPawns[Us] |= s;
+        // A pawn is passed if one of the three following conditions is true:
+        // (a) there is no stoppers except some levers
+        // (b) the only stoppers are the leverPush, but we outnumber them
+        // (c) there is only one front stopper which can be levered.
+        passed =   !(stoppers ^ lever)
+                || (   !(stoppers ^ leverPush)
+                    && popcount(phalanx) >= popcount(leverPush))
+                || (   stoppers == square_bb(s + Up) && r >= RANK_5
+                    && (shift<Up>(support) & ~(theirPawns | doubleAttackThem)));
 
-        else if (stoppers == square_bb(s + Up) && r >= RANK_5)
-        {
-            b = shift<Up>(support) & ~theirPawns;
-            while (b)
-                if (!more_than_one(theirPawns & PawnAttacks[Us][pop_lsb(&b)]))
-                    e->passedPawns[Us] |= s;
-        }
+        // Passed pawns will be properly scored later in evaluation when we have
+        // full attack info.
+        if (passed)
+            e->passedPawns[Us] |= s;
 
         // Score this pawn
         if (support | phalanx)
@@ -137,6 +134,7 @@ namespace {
 
             score += make_score(v, v * (r - 2) / 4);
         }
+
         else if (!neighbours)
             score -= Isolated + WeakUnopposed * int(!opposed);
 
@@ -146,6 +144,11 @@ namespace {
         if (doubled && !support)
             score -= Doubled;
     }
+
+    // Penalize our unsupported pawns attacked twice by enemy pawns
+    score -= WeakLever * popcount(  ourPawns
+                                  & doubleAttackThem
+                                  & ~e->pawnAttacks[Us]);
 
     return score;
   }
@@ -181,13 +184,13 @@ Entry* probe(const Position& pos) {
 template<Color Us>
 void Entry::evaluate_shelter(const Position& pos, Square ksq, Score& shelter) {
 
-  constexpr Color     Them = (Us == WHITE ? BLACK : WHITE);
+  constexpr Color Them = (Us == WHITE ? BLACK : WHITE);
 
   Bitboard b = pos.pieces(PAWN) & ~forward_ranks_bb(Them, ksq);
   Bitboard ourPawns = b & pos.pieces(Us);
   Bitboard theirPawns = b & pos.pieces(Them);
 
-  Value bonus[] = { Value(5), Value(5) };
+  Score bonus = make_score(5, 5);
 
   File center = clamp(file_of(ksq), FILE_B, FILE_G);
   for (File f = File(center - 1); f <= File(center + 1); ++f)
@@ -199,16 +202,16 @@ void Entry::evaluate_shelter(const Position& pos, Square ksq, Score& shelter) {
       Rank theirRank = b ? relative_rank(Us, frontmost_sq(Them, b)) : RANK_1;
 
       int d = std::min(f, ~f);
-      bonus[MG] += ShelterStrength[d][ourRank];
+      bonus += make_score(ShelterStrength[d][ourRank], 0);
 
       if (ourRank && (ourRank == theirRank - 1))
-          bonus[MG] -= 82 * (theirRank == RANK_3), bonus[EG] -= 82 * (theirRank == RANK_3);
+          bonus -= make_score(82 * (theirRank == RANK_3), 82 * (theirRank == RANK_3));
       else
-          bonus[MG] -= UnblockedStorm[d][theirRank];
+          bonus -= make_score(UnblockedStorm[d][theirRank], 0);
   }
 
-  if (bonus[MG] > mg_value(shelter))
-      shelter = make_score(bonus[MG], bonus[EG]);
+  if (mg_value(bonus) > mg_value(shelter))
+      shelter = bonus;
 }
 
 
