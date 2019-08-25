@@ -571,7 +571,7 @@ namespace {
     Move ttMove, move, excludedMove, bestMove;
     Depth extension, newDepth;
     Value bestValue, value, ttValue, eval;
-    bool ttHit, ttPv, inCheck, givesCheck, improving, doLMR, isMate;
+    bool ttHit, ttPv, inCheck, givesCheck, improving, doLMR, isMate, gameCycle;
     bool captureOrPromotion, doFullDepthSearch, moveCountPruning, ttCapture;
     Piece movedPiece;
     int moveCount, captureCount, quietCount, singularLMR;
@@ -582,6 +582,7 @@ namespace {
     Color us = pos.side_to_move();
     moveCount = captureCount = quietCount = singularLMR = ss->moveCount = 0;
     bestValue = -VALUE_INFINITE;
+    gameCycle = false;
 
     // Check for the available remaining time
     if (thisThread == Threads.main())
@@ -609,6 +610,7 @@ namespace {
 
                 return VALUE_DRAW;
             }
+            gameCycle = true;
             alpha = std::max(alpha, VALUE_DRAW);
         }
 
@@ -657,6 +659,7 @@ namespace {
     // At non-PV nodes we check for an early TT cutoff
     if (  !PvNode
         && ttHit
+        && !gameCycle
         && tte->depth() >= depth
         && ttValue != VALUE_NONE // Possible in case of TT access race
         && (ttValue != VALUE_DRAW || VALUE_DRAW >= beta)
@@ -764,16 +767,21 @@ namespace {
         tte->save(posKey, VALUE_NONE, ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
     }
 
+    if (gameCycle)
+        ss->staticEval = eval = ss->staticEval * std::max(0, (100 - pos.rule50_count())) / 100;
+
     improving =   ss->staticEval >= (ss-2)->staticEval
                || (ss-2)->staticEval == VALUE_NONE;
 
     // Begin early pruning.
     if (   !PvNode
         && !excludedMove
+        && !gameCycle
         &&  abs(eval) < 2 * VALUE_KNOWN_WIN)
     {
        // Step 7. Razoring (~2 Elo)
        if (   depth < 2 * ONE_PLY
+           &&  ss->ply > 2 * thisThread->rootDepth / 3
            && eval <= alpha - RazorMargin)
        {
            Value q = qsearch<NonPV>(pos, ss, alpha, beta);
@@ -784,6 +792,7 @@ namespace {
 
        // Step 8. Futility pruning: child node (~30 Elo)
        if (    depth < 7 * ONE_PLY
+           &&  !thisThread->nmpGuard
            &&  eval - futility_margin(depth, improving) >= beta
            &&  eval < VALUE_KNOWN_WIN) // Do not return unproven wins
            return eval;
@@ -817,7 +826,7 @@ namespace {
                if (nullValue >= VALUE_MATE_IN_MAX_PLY)
                    nullValue = beta;
 
-               if (abs(beta) < VALUE_KNOWN_WIN && depth < 13 * ONE_PLY)
+               if (abs(beta) < VALUE_KNOWN_WIN && depth < 11 * ONE_PLY)
                    return nullValue;
 
                // Do verification search at high depths
@@ -837,6 +846,7 @@ namespace {
        // much above beta, we can (almost) safely prune the previous move.
        if (    depth >= 5 * ONE_PLY
            &&  ss->ply % 2 == 0
+           &&  !thisThread->nmpGuard
            &&  abs(beta) < VALUE_MATE_IN_MAX_PLY)
        {
            Value raisedBeta = std::min(beta + 191 - 46 * improving, VALUE_INFINITE);
@@ -960,14 +970,19 @@ moves_loop: // When in check, search starts from here
       {
 
       // Step 13. Extensions (~70 Elo)
+      if (   gameCycle
+          && (alpha > VALUE_DRAW || (ss->ply % 2 == 0))
+          && (depth < 5 * ONE_PLY || PvNode))
+          extension = (2 - (ss->ply % 2 == 0 && !PvNode)) * ONE_PLY;
 
       // Singular extension search (~60 Elo). If all moves but one fail low on a
       // search of (alpha-s, beta-s), and just one fails high on (alpha, beta),
       // then that move is singular and should be extended. To verify this we do
       // a reduced search on all the other moves but the ttMove and if the
       // result is lower than ttValue minus a margin then we will extend the ttMove.
-      if (    depth >= 6 * ONE_PLY
+      else if (    depth >= 6 * ONE_PLY
           &&  move == ttMove
+          && !gameCycle
           && !rootNode
           && !excludedMove // Avoid recursive singular search
           &&  ttValue != VALUE_NONE
@@ -1006,14 +1021,6 @@ moves_loop: // When in check, search starts from here
 
       // Castling extension
       else if (type_of(move) == CASTLING)
-          extension = ONE_PLY;
-
-      // Shuffle extension
-      else if (   PvNode
-               && pos.rule50_count() > 18
-               && depth < 3 * ONE_PLY
-               && thisThread->selDepth < 102
-               && ++thisThread->shuffleExts < thisThread->nodes.load(std::memory_order_relaxed) / 4)  // To avoid too many extensions
           extension = ONE_PLY;
 
       // Passed pawn extension
@@ -1079,6 +1086,7 @@ moves_loop: // When in check, search starts from here
       // Step 16. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
       if (    depth >= 3 * ONE_PLY
+          && !gameCycle
           &&  moveCount > 1 + 3 * rootNode
           &&  thisThread->selDepth * ONE_PLY > depth
           && (  !captureOrPromotion
@@ -1144,7 +1152,7 @@ moves_loop: // When in check, search starts from here
               r -= ss->statScore / 16384 * ONE_PLY;
           }
 
-          Depth rr = newDepth / (3 * ONE_PLY + ss->ply);
+          Depth rr = newDepth / (2 * ONE_PLY + ss->ply / 3);
 
           r -= rr;
 
@@ -1329,7 +1337,7 @@ moves_loop: // When in check, search starts from here
     Move ttMove, move, bestMove;
     Depth ttDepth;
     Value bestValue, value, ttValue, futilityValue, futilityBase, oldAlpha;
-    bool ttHit, pvHit, inCheck, givesCheck, evasionPrunable;
+    bool ttHit, pvHit, inCheck, givesCheck, evasionPrunable, gameCycle;
     int moveCount;
 
     if (PvNode)
@@ -1344,6 +1352,7 @@ moves_loop: // When in check, search starts from here
     bestMove = MOVE_NONE;
     inCheck = pos.checkers();
     moveCount = 0;
+    gameCycle = false;
 
     if (pos.has_game_cycle(ss->ply))
     {
@@ -1351,6 +1360,7 @@ moves_loop: // When in check, search starts from here
            return VALUE_DRAW;
 
        alpha = std::max(alpha, VALUE_DRAW);
+       gameCycle = true;
     }
 
     if (pos.is_draw(ss->ply))
@@ -1379,6 +1389,7 @@ moves_loop: // When in check, search starts from here
 
     if (  !PvNode
         && ttHit
+        && !gameCycle
         && tte->depth() >= ttDepth
         && ttValue != VALUE_NONE // Only in case of TT access race
         && (ttValue != VALUE_DRAW || VALUE_DRAW >= beta)
@@ -1425,6 +1436,9 @@ moves_loop: // When in check, search starts from here
 
         futilityBase = bestValue + 153;
     }
+
+    if (gameCycle && !inCheck)
+        ss->staticEval = bestValue = ss->staticEval * std::max(0, (100 - pos.rule50_count())) / 100;
 
     const PieceToHistory* contHist[] = { (ss-1)->continuationHistory, (ss-2)->continuationHistory,
                                           nullptr, (ss-4)->continuationHistory,
