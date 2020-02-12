@@ -808,8 +808,8 @@ namespace {
     if (gameCycle)
         ss->staticEval = eval = ss->staticEval * std::max(0, (100 - pos.rule50_count())) / 100;
 
-    improving =  (ss-2)->staticEval == VALUE_NONE ? (ss->staticEval >= (ss-4)->staticEval
-              || (ss-4)->staticEval == VALUE_NONE) : ss->staticEval >= (ss-2)->staticEval;
+    improving =  (ss-2)->staticEval == VALUE_NONE ? (ss->staticEval > (ss-4)->staticEval
+              || (ss-4)->staticEval == VALUE_NONE) : ss->staticEval > (ss-2)->staticEval;
 
     // Begin early pruning.
     if (   !PvNode
@@ -840,7 +840,7 @@ namespace {
            && (ss-1)->statScore < 23397
            &&  eval >= beta
            &&  eval >= ss->staticEval
-           &&  ss->staticEval >= beta - 32 * depth + 292 - improving * 30
+           &&  ss->staticEval >= beta - 32 * depth - 30 * improving + 120 * ttPv + 292
            &&  pos.non_pawn_material(us)
            && !thisThread->nmpGuard
            && !(depth > 4 && (MoveList<LEGAL, KING>(pos).size() < 1 || MoveList<LEGAL>(pos).size() < 6)))
@@ -1051,7 +1051,7 @@ moves_loop: // When in check, search starts from here
                   continue;
           }
           else if (!pos.see_ge(move, Value(-194) * depth)) // (~25 Elo)
-                  continue;
+              continue;
       }
 
       // Step 14. Extensions (~75 Elo)
@@ -1073,7 +1073,7 @@ moves_loop: // When in check, search starts from here
           && (tte->bound() & BOUND_LOWER)
           &&  tte->depth() >= depth - 3)
       {
-          Value singularBeta = std::max(ttValue - 2 * depth, mated_in(ss->ply));
+          Value singularBeta = std::max(ttValue - (((ttPv && !PvNode) + 4) * depth) / 2, mated_in(ss->ply));
           Depth halfDepth = depth / 2;
           ss->excludedMove = move;
           value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, halfDepth, cutNode);
@@ -1134,7 +1134,7 @@ moves_loop: // When in check, search starts from here
       // re-searched at full depth.
       if (    depth >= 3
           && !gameCycle
-          &&  moveCount > 1 + rootNode + (rootNode && bestValue < alpha)
+          &&  moveCount > 1 + 2 * rootNode
           && (!rootNode || thisThread->best_move_count(move) == 0)
           &&  thisThread->selDepth > depth
           && (  !captureOrPromotion
@@ -1180,7 +1180,7 @@ moves_loop: // When in check, search starts from here
               // hence break make_move(). (~2 Elo)
               else if (    type_of(move) == NORMAL
                        && !pos.see_ge(reverse_move(move)))
-                  r -= 2;
+                  r -= 2 + ttPv;
 
               ss->statScore =  thisThread->mainHistory[us][from_to(move)]
                              + (*contHist[0])[movedPiece][to_sq(move)]
