@@ -148,7 +148,7 @@ namespace {
   Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0);
 
   Value value_to_tt(Value v, int ply);
-  Value value_from_tt(Value v, int ply);
+  Value value_from_tt(Value v, int ply, int r50c);
   void update_pv(Move* pv, Move move, Move* childPv);
   void update_continuation_histories(Stack* ss, Piece pc, Square to, int bonus);
   void update_quiet_stats(const Position& pos, Stack* ss, Move move, int bonus, int depth);
@@ -543,9 +543,12 @@ void Thread::search() {
           }
           double bestMoveInstability = 1 + totBestMoveChanges / Threads.size();
 
+          TimePoint elapsedT = Time.elapsed();
+          TimePoint optimumT = Time.optimum();
+
           // Stop the search if we have only one legal move, or if available time elapsed
-          if (   rootMoves.size() == 1
-              || Time.elapsed() > Time.optimum() * fallingEval * reduction * bestMoveInstability)
+          if (   (rootMoves.size() == 1 && (elapsedT > optimumT / 16))
+              || elapsedT > optimumT * fallingEval * reduction * bestMoveInstability)
           {
               // If we are allowed to ponder do not stop the search now but
               // keep pondering until the GUI sends "ponderhit" or "stop".
@@ -556,7 +559,7 @@ void Thread::search() {
           }
           else if (   Threads.increaseDepth
                    && !mainThread->ponder
-                   && Time.elapsed() > Time.optimum() * fallingEval * reduction * bestMoveInstability * 0.6)
+                   && elapsedT > optimumT * fallingEval * reduction * bestMoveInstability * 0.6)
                    Threads.increaseDepth = false;
           else
                    Threads.increaseDepth = true;
@@ -632,7 +635,7 @@ namespace {
     excludedMove = ss->excludedMove;
     posKey = pos.key() ^ Key(excludedMove);
     tte = TT.probe(posKey, ttHit);
-    ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
+    ttValue = ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
     ttMove =  rootNode ? thisThread->rootMoves[thisThread->pvIdx].pv[0]
             : ttHit    ? tte->move() : MOVE_NONE;
     ttPv = PvNode || (ttHit && tte->is_pv());
@@ -887,9 +890,10 @@ namespace {
        // Step 10. ProbCut (~10 Elo)
        // If we have a good enough capture and a reduced search returns a value
        // much above beta, we can (almost) safely prune the previous move.
+
        if (    depth >= 5
-           &&  ss->ply % 2 == 0
-           &&  !thisThread->nmpGuard
+           && !(ss->ply & 1)
+           && !thisThread->nmpGuard
            &&  abs(beta) < VALUE_TB_WIN_IN_MAX_PLY)
        {
            Value raisedBeta = std::min(beta + 189 - 45 * improving, VALUE_INFINITE);
@@ -935,7 +939,7 @@ namespace {
         search<NT>(pos, ss, alpha, beta, depth - 7, cutNode);
 
         tte = TT.probe(posKey, ttHit);
-        ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
+        ttValue = ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
         ttMove = ttHit ? tte->move() : MOVE_NONE;
     }
 
@@ -1434,7 +1438,7 @@ moves_loop: // When in check, search starts from here
     // Transposition table lookup
     posKey = pos.key();
     tte = TT.probe(posKey, ttHit);
-    ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
+    ttValue = ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
     ttMove = ttHit ? tte->move() : MOVE_NONE;
     pvHit = ttHit && tte->is_pv();
 
@@ -1622,12 +1626,12 @@ moves_loop: // When in check, search starts from here
   // However, for mate scores, to avoid potentially false mate scores related to the 50 moves rule,
   // and the graph history interaction, return an optimal TB score instead.
 
-  Value value_from_tt(Value v, int ply) {
+  Value value_from_tt(Value v, int ply, int r50c) {
 
-    return  v == VALUE_NONE             ? VALUE_NONE
+    /*return  v == VALUE_NONE             ? VALUE_NONE
           : v >= VALUE_MATE_IN_MAX_PLY  ? v - ply
-          : v <= VALUE_MATED_IN_MAX_PLY ? v + ply : v;
-/*
+          : v <= VALUE_MATED_IN_MAX_PLY ? v + ply : v; */
+
     if (v == VALUE_NONE)
         return VALUE_NONE;
 
@@ -1648,7 +1652,7 @@ moves_loop: // When in check, search starts from here
     }
 
     return v;
-*/
+
   }
 
 
