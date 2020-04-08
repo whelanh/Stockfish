@@ -608,9 +608,9 @@ namespace {
     Depth extension, newDepth;
     Value bestValue, value, ttValue, eval;
     bool ttHit, ttPv, inCheck, givesCheck, improving, didLMR, priorCapture, isMate, gameCycle;
-    bool captureOrPromotion, doFullDepthSearch, moveCountPruning, ttCapture, singularLMR;
+    bool captureOrPromotion, doFullDepthSearch, moveCountPruning, ttCapture, singularLMR, kingDanger;
     Piece movedPiece;
-    int moveCount, captureCount, quietCount;
+    int moveCount, captureCount, quietCount, rootDepth;
 
     // Step 1. Initialize node
     Thread* thisThread = pos.this_thread();
@@ -619,7 +619,8 @@ namespace {
     Color us = pos.side_to_move();
     moveCount = captureCount = quietCount = ss->moveCount = 0;
     bestValue = -VALUE_INFINITE;
-    gameCycle = false;
+    gameCycle = kingDanger = false;
+    rootDepth = thisThread->rootDepth;
 
     // Check for the available remaining time
     if (thisThread == Threads.main())
@@ -826,7 +827,7 @@ namespace {
     {
        // Step 7. Razoring (~2 Elo)
        if (   depth == 1
-           && ss->ply > 2 * thisThread->rootDepth / 3
+           && ss->ply > 2 * rootDepth / 3
            && eval <= alpha - RazorMargin)
        {
            Value q = qsearch<NonPV>(pos, ss, alpha, beta);
@@ -834,10 +835,14 @@ namespace {
            if (q <= alpha)
                return q;
        }
+       else if (!thisThread->nmpGuard)
+       {
+       if (rootDepth > 10)
+           kingDanger = pos.king_danger();
 
        // Step 8. Futility pruning: child node (~30 Elo)
        if (    depth < 6
-           &&  !thisThread->nmpGuard
+           && !kingDanger
            &&  eval - futility_margin(depth, improving) >= beta
            &&  eval < VALUE_KNOWN_WIN) // Do not return unproven wins
            return eval;
@@ -849,8 +854,8 @@ namespace {
            &&  eval >= ss->staticEval
            &&  ss->staticEval >= beta - 32 * depth - 30 * improving + 120 * ttPv + 292
            &&  pos.non_pawn_material(us)
-           && !thisThread->nmpGuard
-           && !(depth > 4 && (MoveList<LEGAL, KING>(pos).size() < 1 || MoveList<LEGAL>(pos).size() < 6)))
+           && !kingDanger
+           && !(rootDepth > 10 && MoveList<LEGAL>(pos).size() < 6))
        {
            assert(eval - beta >= 0);
 
@@ -893,7 +898,6 @@ namespace {
 
        if (    depth >= 5
            && !(ss->ply & 1)
-           && !thisThread->nmpGuard
            &&  abs(beta) < VALUE_TB_WIN_IN_MAX_PLY)
        {
            Value raisedBeta = std::min(beta + 189 - 45 * improving, VALUE_INFINITE);
@@ -930,6 +934,7 @@ namespace {
                    if (value >= raisedBeta)
                        return value;
                }
+       }
        }
     } //End early Pruning
 
@@ -1165,6 +1170,9 @@ moves_loop: // When in check, search starts from here
           // Decrease reduction if position is or has been on the PV (~10 Elo)
           if (ttPv)
               r -= 2;
+
+          if (rootDepth > 10 && pos.king_danger())
+              r -= 1;
 
           // Decrease reduction if opponent's move count is high (~5 Elo)
           if ((ss-1)->moveCount > 14)
