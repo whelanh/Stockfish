@@ -826,20 +826,9 @@ namespace {
     if (   !PvNode
         && !excludedMove
         && !gameCycle
+        && !thisThread->nmpGuard
         &&  abs(eval) < 2 * VALUE_KNOWN_WIN)
     {
-       // Step 7. Razoring (~2 Elo)
-       if (   depth == 1
-           && ss->ply > 2 * rootDepth / 3
-           && eval <= alpha - RazorMargin)
-       {
-           Value q = qsearch<NonPV>(pos, ss, alpha, beta);
-
-           if (q <= alpha)
-               return q;
-       }
-       else if (!thisThread->nmpGuard)
-       {
        if (rootDepth > 10)
            kingDanger = pos.king_danger();
 
@@ -936,7 +925,6 @@ namespace {
                    if (value >= raisedBeta)
                        return value;
                }
-       }
        }
     } //End early Pruning
 
@@ -1871,7 +1859,7 @@ string UCI::pv(const Position& pos, Depth depth, Value alpha, Value beta) {
       Depth d = updated ? depth : depth - 1;
       Value v = updated ? rootMoves[i].score : rootMoves[i].previousScore;
 
-      bool tb = TB::RootInTB && abs(v) < VALUE_TB_WIN - 5 * PawnValueEg;
+      bool tb = TB::RootInTB && abs(v) < VALUE_TB_WIN - 6 * PawnValueEg;
       v = tb ? rootMoves[i].tbScore : v;
 
       if (ss.rdbuf()->in_avail()) // Not at first line

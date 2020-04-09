@@ -84,11 +84,11 @@ bool pawns_comp(Square i, Square j) { return MapPawns[i] < MapPawns[j]; }
 int off_A1H8(Square sq) { return int(rank_of(sq)) - file_of(sq); }
 
 constexpr Value WDL_to_value[] = {
-   -VALUE_TB_WIN + 5 * PawnValueEg,
+   -VALUE_TB_WIN + 6 * PawnValueEg,
     VALUE_DRAW - 2,
     VALUE_DRAW,
     VALUE_DRAW + 2,
-    VALUE_TB_WIN - 5 * PawnValueEg
+    VALUE_TB_WIN - 6 * PawnValueEg
 };
 
 template<typename T, int Half = sizeof(T) / 2, int End = sizeof(T) - 1>

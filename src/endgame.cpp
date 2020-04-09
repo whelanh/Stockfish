@@ -116,7 +116,7 @@ Value Endgame<KXK>::operator()(const Position& pos) const {
       ||(pos.count<BISHOP>(strongSide) && pos.count<KNIGHT>(strongSide))
       || (   (pos.pieces(strongSide, BISHOP) & ~DarkSquares)
           && (pos.pieces(strongSide, BISHOP) &  DarkSquares)))
-      result = std::min(result + VALUE_KNOWN_WIN, VALUE_TB_WIN_IN_MAX_PLY - 1);
+      result = std::min(result + VALUE_KNOWN_WIN, VALUE_TB_WIN - 7 * PawnValueEg);
 
   return strongSide == pos.side_to_move() ? result : -result;
 }
