@@ -1141,6 +1141,25 @@ bool Position::has_repeated() const {
     return false;
 }
 
+bool Position::is_scb(Color Us) const {
+
+    if (pieces(Us, QUEEN))
+        return false;
+
+    if (pieces(Us, ROOK))
+        return false;
+
+    if (pieces(Us, KNIGHT))
+        return false;
+
+    if (      pieces(Us, BISHOP)
+        && !((pieces(Us, BISHOP) & ~DarkSquares) && (pieces(Us, BISHOP) &  DarkSquares)))
+            return true;
+
+    return false;
+}
+
+
 bool Position::king_danger() const {
 
     Square ksq = square<KING>(sideToMove);
