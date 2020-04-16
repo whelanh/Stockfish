@@ -35,7 +35,7 @@ namespace Trace {
   enum Tracing { NO_TRACE, TRACE };
 
   enum Term { // The first 8 entries are reserved for PieceType
-    MATERIAL = 8, IMBALANCE, MOBILITY, THREAT, PASSED, SPACE, INITIATIVE, TOTAL, TERM_NB
+    MATERIAL = 8, IMBALANCE, MOBILITY, THREAT, PAWN_THREATS, SPACE, INITIATIVE, TOTAL, TERM_NB
   };
 
   Score scores[TERM_NB][COLOR_NB];
@@ -127,6 +127,7 @@ namespace {
   };
 
   // Assorted bonuses and penalties
+  constexpr Score AttackedWeakPawn    = S( 40, 40);  // Plausible NN value weight range 30 - 85
   constexpr Score BishopPawns         = S(  3,  7);
   constexpr Score CorneredBishop      = S( 50, 50);
   constexpr Score FlankAttacks        = S(  8,  0);
@@ -165,7 +166,7 @@ namespace {
     template<Color Us, PieceType Pt> Score pieces();
     template<Color Us> Score king() const;
     template<Color Us> Score threats() const;
-    template<Color Us> Score passed() const;
+    template<Color Us> Score pawns() const;
     template<Color Us> Score space() const;
     ScaleFactor scale_factor(Value eg) const;
     Score initiative(Score score) const;
@@ -570,11 +571,11 @@ namespace {
     return score;
   }
 
-  // Evaluation::passed() evaluates the passed pawns and candidate passed
-  // pawns of the given color.
+  // Evaluation::pawns() evaluates the weak pawns, passed pawns,
+  // and candidate passed pawns of the given color.
 
   template<Tracing T> template<Color Us>
-  Score Evaluation<T>::passed() const {
+  Score Evaluation<T>::pawns() const {
 
     constexpr Color     Them = ~Us;
     constexpr Direction Up   = pawn_push(Us);
@@ -586,6 +587,43 @@ namespace {
 
     Bitboard b, bb, squaresToQueen, unsafeSquares, candidatePassers, leverable;
     Score score = SCORE_ZERO;
+
+    b = pe->weak_pawns(Us);
+
+    while (b)
+    {
+        Square s = pop_lsb(&b);
+        Square pawnPush = s + Up;
+
+        bool attackablePieces = pos.pieces(Them) & PawnAttacks[Us][s];  //if can capture enemy piece not immobile
+        bool enemyBlockers = pos.pieces(Them) & pawnPush;  // Possibly check for attackeBy[Us][ALL_PIECES], pawn attacks handled by attackablePieces
+        bool unsafePawnPush = (   ((attackedBy[Them][ALL_PIECES] & pawnPush) && !(attackedBy[Us][ALL_PIECES] & pawnPush))
+                               ||  more_than_one(pos.pieces(Them, PAWN) & pos.attackers_to(pawnPush)));
+                               // possibly check for attackBy2 vs !attackedBy2
+
+        bool immobile   = (   !attackablePieces
+                           && (enemyBlockers || unsafePawnPush));
+
+        if (immobile)
+        {
+
+            Bitboard pawnAttackers = attackedBy[Them][ALL_PIECES] & s; //pawn attackers already excluded via attackable pieces and immobile
+            Bitboard strongPawnAttackers = 0;
+
+            // remove challeneged non pawn attackers
+            // also try leaving them in or only removing those attacked by pawns
+            while (pawnAttackers)
+            {
+                Square a = pop_lsb(&pawnAttackers);
+
+                if (!(attackedBy[Us][ALL_PIECES] & a)) //attackedBy[Us][PAWN]
+                    /*score -= AttackedWeakPawn;*/ strongPawnAttackers |= a;
+            }
+
+            if (strongPawnAttackers)
+                score -= AttackedWeakPawn;  // Not sure if should decrement per weak pawn or per attacker to weak pawn
+        }
+    }
 
     b = pe->passed_pawns(Us);
 
@@ -659,7 +697,7 @@ namespace {
     }
 
     if (T)
-        Trace::add(PASSED, Us, score);
+        Trace::add(PAWN_THREATS, Us, score);
 
     return score;
   }
@@ -820,7 +858,7 @@ namespace {
 
     score +=  king<   WHITE>() - king<   BLACK>()
             + threats<WHITE>() - threats<BLACK>()
-            + passed< WHITE>() - passed< BLACK>()
+            + pawns<  WHITE>() - pawns<  BLACK>()
             + space<  WHITE>() - space<  BLACK>();
 
     score += initiative(score);
@@ -888,7 +926,7 @@ std::string Eval::trace(const Position& pos) {
      << "    Mobility | " << Term(MOBILITY)
      << " King safety | " << Term(KING)
      << "     Threats | " << Term(THREAT)
-     << "      Passed | " << Term(PASSED)
+     << "Pawn Threats | " << Term(PAWN_THREATS)
      << "       Space | " << Term(SPACE)
      << "  Initiative | " << Term(INITIATIVE)
      << " ------------+-------------+-------------+------------\n"
