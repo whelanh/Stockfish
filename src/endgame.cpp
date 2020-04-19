@@ -137,7 +137,8 @@ Value Endgame<KXK>::operator()(const Position& pos) const {
   // All pawns are on File A or H
   if (!(Pawns & ~FileABB) || !(Pawns & ~FileHBB))
   {
-    Square bishopSq = pos.square<BISHOP>(strongSide);
+    Bitboard strongBishops = pos.pieces(strongSide, BISHOP);
+    Square bishopSq = lsb(strongBishops);
     Square queeningSq = relative_square(strongSide, make_square(file_of(lsb(Pawns)), RANK_8));
     Square weakKingSq = pos.square<KING>(weakSide);
 
@@ -365,7 +366,8 @@ ScaleFactor Endgame<KBPsK>::operator()(const Position& pos) const {
   // All strongSide pawns are on a single rook file?
   if (!(strongPawns & ~FileABB) || !(strongPawns & ~FileHBB))
   {
-      Square bishopSq = pos.square<BISHOP>(strongSide);
+      Bitboard strongBishops = pos.pieces(strongSide, BISHOP);
+      Square bishopSq = lsb(strongBishops);
       Square queeningSq = relative_square(strongSide, make_square(file_of(lsb(strongPawns)), RANK_8));
       Square weakKingSq = pos.square<KING>(weakSide);
 
