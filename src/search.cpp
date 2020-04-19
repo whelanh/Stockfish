@@ -64,8 +64,7 @@ namespace {
   constexpr uint64_t ttHitAverageWindow     = 4096;
   constexpr uint64_t ttHitAverageResolution = 1024;
 
-  // Razor and futility margins
-  constexpr int RazorMargin = 531;
+  // Futility margin
   Value futility_margin(Depth d, bool improving) {
     return Value(217 * (d - improving));
   }

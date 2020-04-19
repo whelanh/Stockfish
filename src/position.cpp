@@ -1189,7 +1189,8 @@ bool Position::king_danger() const {
     int kingAttackersCount = popcount(kingAttackers);
     int legalKingCount = popcount(legalKing);
 
-    if (kingAttackersCount > 1 && legalKingCount < 2)
+    if (   (kingAttackersCount > 1 &&  legalKingCount < 2)
+        || (kingAttackersCount > 0 && !legalKingCount))
         return true;
 
     return false;
