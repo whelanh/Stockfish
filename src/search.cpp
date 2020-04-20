@@ -1087,6 +1087,7 @@ moves_loop: // When in check, search starts from here
           && !rootNode
           && !excludedMove // Avoid recursive singular search
           &&  ttValue != VALUE_NONE
+          &&  abs(beta) < VALUE_TB_WIN_IN_MAX_PLY
           && (tte->bound() & BOUND_LOWER)
           &&  tte->depth() >= depth - 3)
       {
@@ -1109,7 +1110,7 @@ moves_loop: // When in check, search starts from here
           // that multiple moves fail high, and we can prune the whole subtree by returning
           // a soft bound.
           else if (singularBeta >= beta)
-              return singularBeta;
+              return std::min(singularBeta, VALUE_TB_WIN_IN_MAX_PLY);
 
           // If the eval of ttMove is greater than beta we try also if there is an other move that
           // pushes it over beta, if so also produce a cutoff
