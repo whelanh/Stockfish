@@ -926,7 +926,7 @@ namespace {
                    pos.undo_move(move);
 
                    if (value >= raisedBeta)
-                       return value;
+                       return std::min(value, VALUE_TB_WIN_IN_MAX_PLY);
                }
        }
     } //End early Pruning
@@ -1091,7 +1091,7 @@ moves_loop: // When in check, search starts from here
           && (tte->bound() & BOUND_LOWER)
           &&  tte->depth() >= depth - 3)
       {
-          Value singularBeta = std::max(ttValue - ((formerPv + 4) * depth) / 2, mated_in(ss->ply));
+          Value singularBeta = std::max(ttValue - ((formerPv + 4) * depth) / 2, VALUE_TB_LOSS_IN_MAX_PLY);
           Depth singularDepth = (depth - 1 + 3 * formerPv) / 2;
 
           ss->excludedMove = move;
