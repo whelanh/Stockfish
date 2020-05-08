@@ -605,7 +605,8 @@ namespace {
     TTEntry* tte;
     Key posKey;
     Move ttMove, move, excludedMove, bestMove;
-    Depth extension, newDepth;
+    Depth extension, newDepth, ttDepth;
+    Bound ttBound;
     Value bestValue, value, ttValue, eval;
     bool ttHit, ttPv, formerPv, inCheck, givesCheck, improving, didLMR, priorCapture, isMate, gameCycle;
     bool captureOrPromotion, doFullDepthSearch, moveCountPruning, ttCapture, singularLMR, kingDanger;
@@ -637,6 +638,8 @@ namespace {
     posKey = pos.key() ^ Key(excludedMove);
     tte = TT.probe(posKey, ttHit);
     ttValue = ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
+    ttDepth = tte->depth();
+    ttBound = tte->bound();
     ttMove =  rootNode ? thisThread->rootMoves[thisThread->pvIdx].pv[0]
             : ttHit    ? tte->move() : MOVE_NONE;
     ttPv = PvNode || (ttHit && tte->is_pv());
@@ -706,11 +709,11 @@ namespace {
         && ttHit
         && !gameCycle
         && pos.rule50_count() < 88
-        && tte->depth() >= depth
+        && ttDepth >= depth
         && ttValue != VALUE_NONE // Possible in case of TT access race
         && (ttValue != VALUE_DRAW || VALUE_DRAW >= beta)
-        && (ttValue >= beta ? (tte->bound() & BOUND_LOWER)
-                            : (tte->bound() & BOUND_UPPER)))
+        && (ttValue >= beta ? (ttBound & BOUND_LOWER)
+                            : (ttBound & BOUND_UPPER)))
     {
         // If ttMove is quiet, update move sorting heuristics on TT hit
         if (ttMove)
@@ -799,7 +802,7 @@ namespace {
 
         // Can ttValue be used as a better position evaluation?
         if (    ttValue != VALUE_NONE
-            && (tte->bound() & (ttValue > eval ? BOUND_LOWER : BOUND_UPPER)))
+            && (ttBound & (ttValue > eval ? BOUND_LOWER : BOUND_UPPER)))
             eval = ttValue;
     }
     else
@@ -854,6 +857,11 @@ namespace {
            // Null move dynamic reduction based on depth and value
            Depth R = ((854 + 68 * depth) / 258 + std::min(int(eval - beta) / 192, 3));
 
+           if (   depth < 11
+               || ttValue >= beta
+               || ttDepth < depth-R
+               || !(ttBound & BOUND_UPPER))
+           {
            ss->currentMove = MOVE_NULL;
            ss->continuationHistory = &thisThread->continuationHistory[0][0][NO_PIECE][0];
 
@@ -882,6 +890,7 @@ namespace {
                if (v >= beta)
                    return nullValue;
            }
+           }
        }
 
        // Step 10. ProbCut (~10 Elo)
@@ -898,7 +907,7 @@ namespace {
            while (  (move = mp.next_move()) != MOVE_NONE
                   && probCutCount < 2 + 2 * cutNode
                   && !(   move == ttMove
-                       && tte->depth() >= depth - 4
+                       && ttDepth >= depth - 4
                        && ttValue < raisedBeta))
                if (move != excludedMove)
                {
@@ -1109,47 +1118,53 @@ moves_loop: // When in check, search starts from here
           // search without the ttMove. So we assume this expected Cut-node is not singular,
           // that multiple moves fail high, and we can prune the whole subtree by returning
           // a soft bound.
-          else if (singularBeta >= beta)
-              return std::min(singularBeta, VALUE_TB_WIN_IN_MAX_PLY);
-
-          // If the eval of ttMove is greater than beta we try also if there is an other move that
-          // pushes it over beta, if so also produce a cutoff
-          else if (ttValue >= beta)
+          else if (!PvNode)
           {
-              ss->excludedMove = move;
-              value = search<NonPV>(pos, ss, beta - 1, beta, (depth + 3) / 2, cutNode);
-              ss->excludedMove = MOVE_NONE;
+            if (singularBeta >= beta)
+                return std::min(singularBeta, VALUE_TB_WIN_IN_MAX_PLY);
 
-              if (value >= beta)
-                  return beta;
+            // If the eval of ttMove is greater than beta we try also if there is an other move that
+            // pushes it over beta, if so also produce a cutoff
+            else if (ttValue >= beta)
+            {
+                ss->excludedMove = move;
+                value = search<NonPV>(pos, ss, beta - 1, beta, (depth + 3) / 2, cutNode);
+                ss->excludedMove = MOVE_NONE;
+
+                if (value >= beta)
+                    return beta;
+            }
           }
       }
-
-      // Check extension (~2 Elo)
-      else if (    givesCheck
-               && (pos.is_discovery_check_on_king(~us, move) || pos.see_ge(move)))
-          extension = 1;
-
-      // Passed pawn extension
-      else if (   move == ss->killers[0]
-               && pos.advanced_pawn_push(move)
-               && pos.pawn_passed(us, to_sq(move)))
-          extension = 1;
-
-      // Last captures extension
-      else if (   PieceValue[EG][pos.captured_piece()] > PawnValueEg
-               && pos.non_pawn_material() <= 2 * RookValueMg)
-          extension = 1;
-
-      // Castling extension
-      if (type_of(move) == CASTLING)
-          extension = 1;
 
       // Late irreversible move extension
       if (   move == ttMove
           && pos.rule50_count() > 80
           && (captureOrPromotion || type_of(movedPiece) == PAWN))
           extension = 2;
+
+      // Check extension (~2 Elo)
+      else if (!extension)
+      {
+        if (    givesCheck
+            && (pos.is_discovery_check_on_king(~us, move) || pos.see_ge(move)))
+            extension = 1;
+
+        // Passed pawn extension
+        else if (   move == ss->killers[0]
+                 && pos.advanced_pawn_push(move)
+                 && pos.pawn_passed(us, to_sq(move)))
+            extension = 1;
+
+        // Last captures extension
+        else if (   PieceValue[EG][pos.captured_piece()] > PawnValueEg
+                 && pos.non_pawn_material() <= 2 * RookValueMg)
+            extension = 1;
+
+        // Castling extension
+        else if (type_of(move) == CASTLING)
+            extension = 1;
+      }
 
       // Add extension to new depth
       newDepth += extension;
