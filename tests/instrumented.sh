@@ -102,7 +102,7 @@ if [ ! -d ../tests/syzygy ]; then
 fi
 
 cat << EOF > syzygy.exp
- set timeout 240
+ set timeout 660
  spawn $exeprefix ./crystal
  send "uci\n"
  send "setoption name SyzygyPath value ../tests/syzygy/\n"
