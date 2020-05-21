@@ -897,7 +897,6 @@ namespace {
        // If we have a good enough capture and a reduced search returns a value
        // much above beta, we can (almost) safely prune the previous move.
        if (    depth >= 5
-           && !(ss->ply & 1)
            &&  abs(beta) < VALUE_TB_WIN_IN_MAX_PLY)
        {
            Value raisedBeta = std::min(beta + 189 - 45 * improving, VALUE_INFINITE);
