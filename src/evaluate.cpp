@@ -91,8 +91,8 @@ namespace {
   // MobilityBonus[PieceType-2][attacked] contains bonuses for middle and end game,
   // indexed by piece type and number of attacked squares in the mobility area.
   constexpr Score MobilityBonus[][32] = {
-    { S(-62,-81), S(-53,-56), S(-12,-30), S( -4,-14), S(  3,  8), S( 13, 15), // Knight
-      S( 22, 23), S( 28, 27), S( 33, 33) },
+    { S(-62,-81), S(-53,-56), S(-12,-31), S( -4,-16), S(  3,  5), S( 13, 11), // Knight
+      S( 22, 17), S( 28, 20), S( 33, 25) },
     { S(-48,-59), S(-20,-23), S( 16, -3), S( 26, 13), S( 38, 24), S( 51, 42), // Bishop
       S( 55, 54), S( 63, 57), S( 63, 65), S( 68, 73), S( 81, 78), S( 81, 86),
       S( 91, 88), S( 98, 97) },
@@ -591,25 +591,22 @@ namespace {
       return std::min(distance(pos.square<KING>(c), s), 5);
     };
 
-    Bitboard b, bb, squaresToQueen, unsafeSquares, candidatePassers, leverable;
+    Bitboard b, bb, squaresToQueen, unsafeSquares, blockedPassers, helpers;
     Score score = SCORE_ZERO;
 
     b = pe->passed_pawns(Us);
 
-    candidatePassers = b & shift<Down>(pos.pieces(Them, PAWN));
-    if (candidatePassers)
+    blockedPassers = b & shift<Down>(pos.pieces(Them, PAWN));
+    if (blockedPassers)
     {
-        // Can we lever the blocker of a candidate passer?
-        leverable =  shift<Up>(pos.pieces(Us, PAWN))
-                   & ~pos.pieces(Them)
-                   & (~attackedBy2[Them] | attackedBy[Us][ALL_PIECES])
-                   & (~(attackedBy[Them][KNIGHT] | attackedBy[Them][BISHOP])
-                     | (attackedBy[Us  ][KNIGHT] | attackedBy[Us  ][BISHOP]));
+        helpers =  shift<Up>(pos.pieces(Us, PAWN))
+                 & ~pos.pieces(Them)
+                 & (~attackedBy2[Them] | attackedBy[Us][ALL_PIECES]);
 
-        // Remove candidate otherwise
-        b &= ~candidatePassers
-            | shift<WEST>(leverable)
-            | shift<EAST>(leverable);
+        // Remove blocked candidate passers that don't have help to pass
+        b &=  ~blockedPassers
+            | shift<WEST>(helpers)
+            | shift<EAST>(helpers);
     }
 
     while (b)
@@ -733,12 +730,13 @@ namespace {
 
     // Compute the initiative bonus for the attacking side
     int complexity =   9 * pe->passed_count()
-                    + 11 * pos.count<PAWN>()
+                    + 12 * pos.count<PAWN>()
                     +  9 * outflanking
                     + 21 * pawnsOnBothFlanks
                     + 24 * infiltration
                     + 51 * !pos.non_pawn_material()
                     - 43 * almostUnwinnable
+                    -  2 * pos.rule50_count()
                     -110 ;
 
     Value mg = mg_value(score);
@@ -778,8 +776,6 @@ namespace {
         }
         else
             sf = std::min(sf, 36 + 7 * pos.count<PAWN>(strongSide));
-
-        sf = std::max(0, sf - (pos.rule50_count() - 12) / 4);
     }
 
     return ScaleFactor(sf);
@@ -856,7 +852,8 @@ namespace {
         Trace::add(TOTAL, score);
     }
 
-    return  (pos.side_to_move() == WHITE ? v : -v) + Tempo; // Side to move point of view
+    // Side to move point of view
+    return (pos.side_to_move() == WHITE ? v : -v) + Tempo;
   }
 
 } // namespace
