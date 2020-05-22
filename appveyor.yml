@@ -20,7 +20,7 @@ configuration:
 
 matrix:
   # The build fail immediately once one of the job fails
-  fast_finish: true
+  fast_finish: false
 
 # Scripts that are called at very beginning, before repo cloning
 init:
