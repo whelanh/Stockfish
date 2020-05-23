@@ -777,7 +777,7 @@ namespace {
                               v > drawScore ? BOUND_LOWER : v < -drawScore ? BOUND_UPPER : BOUND_EXACT,
                               depth, MOVE_NONE, VALUE_NONE);
 
-                    if (abs(v) <= drawScore)
+                    if (abs(v) <= drawScore || (v > drawScore && alpha < value) || (v < drawScore && alpha > value))
                         return value;
                 }
             }
