@@ -43,7 +43,7 @@ This distribution of Stockfish consists of the following files:
 
 ## UCI parameters
 
-Currently, Stockfish has the following UCI options:
+Currently, Crystal has the following UCI options:
 
   * #### Debug Log File
     Write all communication to and from the engine into a text file.
@@ -71,18 +71,6 @@ Currently, Stockfish has the following UCI options:
   * #### MultiPV
     Output the N best lines (principal variations, PVs) when searching.
     Leave at 1 for best performance.
-
-  * #### Skill Level
-    Lower the Skill Level in order to make Stockfish play weaker (see also UCI_LimitStrength).
-    Internally, MultiPV is enabled, and with a certain probability depending on the Skill Level a
-    weaker move will be played.
-
-  * #### UCI_LimitStrength
-    Enable weaker play aiming for an Elo rating as set by UCI_Elo. This option overrides Skill Level.
-
-  * #### UCI_Elo
-    If enabled by UCI_LimitStrength, aim for an engine strength of the given Elo.
-    This Elo rating has been calibrated at a time control of 60s+0.6s and anchored to CCRL 40/4.
 
   * #### Move Overhead
     Assume a time delay of x ms due to network and GUI overheads. This is useful to
