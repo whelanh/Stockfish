@@ -739,7 +739,7 @@ namespace {
 
                     tte->save(posKey, value, ttPv,
                               v > drawScore ? BOUND_LOWER : v < -drawScore ? BOUND_UPPER : BOUND_EXACT,
-                              depth, MOVE_NONE, VALUE_NONE);
+                              std::max(depth, rootDepth - ss->ply - 1), MOVE_NONE, VALUE_NONE);
 
                     if (abs(v) <= drawScore || (v > drawScore && alpha < value) || (v < drawScore && alpha > value))
                         return value;
@@ -755,9 +755,10 @@ namespace {
     {
         ss->staticEval = eval = VALUE_NONE;
         improving = false;
-        goto moves_loop;  // Skip early pruning when in check
     }
-    else if (ttHit)
+    else
+    {
+    if (ttHit)
     {
         // Never assume anything about values stored in TT
         ss->staticEval = eval = tte->eval();
@@ -841,7 +842,7 @@ namespace {
                if (nullValue >= VALUE_TB_WIN_IN_MAX_PLY)
                    nullValue = beta;
 
-               if (abs(beta) < VALUE_KNOWN_WIN && depth < 11)
+               if (abs(beta) < VALUE_KNOWN_WIN && depth < 11 && beta <= qsearch<NonPV>(pos, ss, beta-1, beta))
                    return nullValue;
 
                // Do verification search at high depths
@@ -912,8 +913,7 @@ namespace {
         ttValue = ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
         ttMove = ttHit ? tte->move() : MOVE_NONE;
     }
-
-moves_loop: // When in check, search starts from here
+    } // In check search starts here
 
     const PieceToHistory* contHist[] = { (ss-1)->continuationHistory, (ss-2)->continuationHistory,
                                           nullptr                   , (ss-4)->continuationHistory,
