@@ -214,7 +214,7 @@ void MainThread::search() {
   {
       rootMoves.emplace_back(MOVE_NONE);
       sync_cout << "info depth 0 score "
-                << UCI::value(rootPos.checkers() ? -VALUE_MATE : VALUE_DRAW)
+                << UCI::value(rootPos.checkers() ? -VALUE_MATE, -VALUE_MATE : VALUE_DRAW, VALUE_DRAW)
                 << sync_endl;
   }
   else
@@ -1831,6 +1831,7 @@ string UCI::pv(const Position& pos, Depth depth, Value alpha, Value beta) {
 
       Depth d = updated ? depth : depth - 1;
       Value v = updated ? rootMoves[i].score : rootMoves[i].previousScore;
+      Value v2 = rootMoves[i].previousScore;
 
       bool tb = TB::RootInTB && abs(v) < VALUE_TB_WIN - 6 * PawnValueEg;
       v = tb ? rootMoves[i].tbScore : v;
@@ -1842,7 +1843,7 @@ string UCI::pv(const Position& pos, Depth depth, Value alpha, Value beta) {
          << " depth "    << d
          << " seldepth " << rootMoves[i].selDepth
          << " multipv "  << i + 1
-         << " score "    << UCI::value(v);
+         << " score "    << UCI::value(v, v2);
 
       if (!tb && i == pvIdx)
           ss << (v >= beta ? " lowerbound" : v <= alpha ? " upperbound" : "");
