@@ -728,21 +728,19 @@ namespace {
 
                 int centiPly = PawnValueEg * ss->ply / 100;
 
+                Value tbValue =    v < -drawScore ? -VALUE_TB_WIN + centiPly + PawnValueEg * popcount(pos.pieces( pos.side_to_move()))
+                                 : v >  drawScore ?  VALUE_TB_WIN - centiPly - PawnValueEg * popcount(pos.pieces(~pos.side_to_move()))
+                                 : v < 0 ? -2 * Tempo : VALUE_DRAW;
+
                 if (    abs(v) <= drawScore
                     || !ttHit
-                    || (v < -drawScore && ttValue > -VALUE_TB_WIN + centiPly + PawnValueEg * popcount(pos.pieces( pos.side_to_move())))
-                    || (v >  drawScore && ttValue <  VALUE_TB_WIN - centiPly - PawnValueEg * popcount(pos.pieces(~pos.side_to_move()))))
+                    || (v < -drawScore && beta  > tbValue)
+                    || (v >  drawScore && alpha < tbValue))
                 {
-                    value =  v < -drawScore ? -VALUE_TB_WIN + centiPly + PawnValueEg * popcount(pos.pieces( pos.side_to_move()))
-                           : v >  drawScore ?  VALUE_TB_WIN - centiPly - PawnValueEg * popcount(pos.pieces(~pos.side_to_move()))
-                                            :  VALUE_DRAW - v < 0 ? 2 * Tempo : VALUE_ZERO;
+                    tte->save(posKey, tbValue, ttPv, v > drawScore ? BOUND_LOWER : v < -drawScore ? BOUND_UPPER : BOUND_EXACT,
+                              depth, MOVE_NONE, VALUE_NONE);
 
-                    tte->save(posKey, value, ttPv,
-                              v > drawScore ? BOUND_LOWER : v < -drawScore ? BOUND_UPPER : BOUND_EXACT,
-                              std::max(depth, rootDepth - ss->ply - 1), MOVE_NONE, VALUE_NONE);
-
-                    if (abs(v) <= drawScore || (v > drawScore && alpha < value) || (v < drawScore && alpha > value))
-                        return value;
+                    return tbValue;
                 }
             }
         }
