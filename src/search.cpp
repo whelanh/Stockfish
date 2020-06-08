@@ -573,7 +573,7 @@ namespace {
     Bound ttBound;
     Value bestValue, value, ttValue, eval;
     bool ttHit, ttPv, formerPv, givesCheck, improving, didLMR, priorCapture, isMate, gameCycle;
-    bool captureOrPromotion, doFullDepthSearch, moveCountPruning, ttCapture, singularLMR, kingDanger;
+    bool captureOrPromotion, doFullDepthSearch, moveCountPruning, ttCapture, singularQuietLMR, kingDanger;
     Piece movedPiece;
     int moveCount, captureCount, quietCount, rootDepth;
 
@@ -925,10 +925,10 @@ namespace {
                                       contHist,
                                       countermove,
                                       ss->killers,
-                                      depth > 12 ? ss->ply : MAX_PLY);
+                                      ss->ply);
 
     value = bestValue;
-    singularLMR = moveCountPruning = false;
+    singularQuietLMR = moveCountPruning = false;
     ttCapture = ttMove && pos.capture_or_promotion(ttMove);
 
     // Mark this node as being searched
@@ -1078,7 +1078,7 @@ namespace {
           if (value < singularBeta)
           {
               extension = 1;
-              singularLMR = true;
+              singularQuietLMR = !ttCapture;
           }
 
           // Multi-cut pruning
@@ -1188,7 +1188,7 @@ namespace {
               r--;
 
           // Decrease reduction if ttMove has been singularly extended (~3 Elo)
-          if (singularLMR)
+          if (singularQuietLMR)
               r -= 1 + formerPv;
 
           if (!PvNode && !captureOrPromotion)
