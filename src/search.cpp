@@ -778,12 +778,13 @@ namespace {
         }
         else
             ss->staticEval = eval = -(ss-1)->staticEval + 2 * Tempo;
-
-        tte->save(posKey, VALUE_NONE, ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
     }
 
     if (gameCycle)
-        ss->staticEval = eval = ss->staticEval * std::max(0, (100 - pos.rule50_count())) / 100;
+        ss->staticEval = eval = eval * std::max(0, (100 - pos.rule50_count())) / 100;
+
+    if (!ttHit)
+        tte->save(posKey, VALUE_NONE, ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
 
     improving =  (ss-2)->staticEval == VALUE_NONE ? (ss->staticEval > (ss-4)->staticEval
               || (ss-4)->staticEval == VALUE_NONE) : ss->staticEval > (ss-2)->staticEval;
@@ -1501,6 +1502,9 @@ namespace {
             (ss-1)->currentMove != MOVE_NULL ? evaluate(pos)
                                              : -(ss-1)->staticEval + 2 * Tempo;
 
+        if (gameCycle)
+            ss->staticEval = bestValue = bestValue * std::max(0, (100 - pos.rule50_count())) / 100;
+
         // Stand pat. Return immediately if static value is at least beta
         if (bestValue >= beta)
         {
@@ -1516,9 +1520,6 @@ namespace {
 
         futilityBase = bestValue + 154;
     }
-
-    if (gameCycle && !ss->inCheck)
-        ss->staticEval = bestValue = ss->staticEval * std::max(0, (100 - pos.rule50_count())) / 100;
 
     const PieceToHistory* contHist[] = { (ss-1)->continuationHistory, (ss-2)->continuationHistory,
                                           nullptr                   , (ss-4)->continuationHistory,
