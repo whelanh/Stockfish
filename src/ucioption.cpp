@@ -59,9 +59,9 @@ void init(OptionsMap& o) {
   constexpr int MaxHashMB = Is64Bit ? 33554432 : 2048;
 
   o["Debug Log File"]        << Option("", on_logger);
-  o["Contempt"]              << Option(0, -100, 100);
+  o["Contempt"]              << Option(12, -100, 100);
   o["SmoothEval"]            << Option(false);
-  o["Dynamic Contempt"]      << Option(false);
+  o["Dynamic Contempt"]      << Option(true);
   o["Analysis Contempt"]     << Option("Off var Off var White var Black var Both", "Off");
   o["Threads"]               << Option(1, 1, 512, on_threads);
   o["Hash"]                  << Option(16, 1, MaxHashMB, on_hash_size);
