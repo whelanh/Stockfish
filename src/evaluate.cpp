@@ -319,7 +319,9 @@ namespace {
                                    : BishopKingProtector) * distance(pos.square<KING>(Us), s);
 
             // Bonus for knight in front of enemy pawn
-            if (Pt == KNIGHT && pos.piece_on(s + pawn_push(Us)) == make_piece(Them, PAWN))
+            if (   Pt == KNIGHT
+                && relative_rank(Us, s) <= 6
+                && pos.piece_on(s + pawn_push(Us)) == make_piece(Them, PAWN))
                 score += BlockingKnight;
 
             if (Pt == BISHOP)
