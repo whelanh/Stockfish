@@ -130,6 +130,7 @@ namespace {
   constexpr Score BishopPawns         = S(  3,  7);
   constexpr Score BishopOnKingRing    = S( 24,  0);
   constexpr Score BishopXRayPawns     = S(  4,  5);
+  constexpr Score BlockingKnight      = S( 16, 16);
   constexpr Score CorneredBishop      = S( 50, 50);
   constexpr Score FlankAttacks        = S(  8,  0);
   constexpr Score Hanging             = S( 69, 36);
@@ -316,6 +317,10 @@ namespace {
             // Penalty if the piece is far from the king
             score -= (Pt == KNIGHT ? KnightKingProtector
                                    : BishopKingProtector) * distance(pos.square<KING>(Us), s);
+
+            // Bonus for knight in front of enemy pawn
+            if (Pt == KNIGHT && pos.piece_on(s + pawn_push(Us)) == make_piece(Them, PAWN))
+                score += BlockingKnight;
 
             if (Pt == BISHOP)
             {
