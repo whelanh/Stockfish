@@ -142,6 +142,7 @@ namespace {
   constexpr Score MinorBehindPawn     = S( 18,  3);
   constexpr Score PassedFile          = S( 11,  8);
   constexpr Score PawnlessFlank       = S( 17, 95);
+  constexpr Score QueenImbalance      = S(275,357);
   constexpr Score QueenInfiltration   = S( -2, 14);
   constexpr Score ReachableOutpost    = S( 31, 22);
   constexpr Score RestrictedPiece     = S(  7,  7);
@@ -381,6 +382,12 @@ namespace {
             // Bonus for queen on weak square in enemy camp
             if (relative_rank(Us, s) > RANK_4 && (~pe->pawn_attacks_span(Them) & s))
                 score += QueenInfiltration;
+
+            // Queen Imbalance
+            if (   !pos.pieces(Them, QUEEN)
+                &&  pos.pieces(Us, ROOK)
+                &&  pos.non_pawn_material(Us) - pos.non_pawn_material(Them) < PawnValueEg)
+                score -= QueenImbalance;
         }
     }
     if (T)
