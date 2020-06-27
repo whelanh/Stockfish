@@ -102,7 +102,7 @@ typedef uint64_t Key;
 typedef uint64_t Bitboard;
 
 constexpr int MAX_MOVES = 256;
-constexpr int MAX_PLY   = 192;
+constexpr int MAX_PLY   = 245;
 
 /// A move needs 16 bits to be stored
 ///
