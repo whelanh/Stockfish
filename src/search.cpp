@@ -557,6 +557,8 @@ namespace {
     if (thisThread == Threads.main())
         static_cast<MainThread*>(thisThread)->check_time();
 
+    thisThread->nodes++;
+
     // Used to send selDepth info to GUI (selDepth counts from 1, ply from 0)
     if (PvNode && thisThread->selDepth < ss->ply + 1)
         thisThread->selDepth = ss->ply + 1;
@@ -939,9 +941,6 @@ namespace {
           pos.do_move(move, st, givesCheck);
           isMate = MoveList<LEGAL>(pos).size() == 0;
           pos.undo_move(move);
-
-          if (!isMate) // Don't double count nodes
-              thisThread->nodes.fetch_sub(1, std::memory_order_relaxed);
       }
 
       if (isMate)
@@ -1404,6 +1403,8 @@ namespace {
     ss->inCheck = pos.checkers();
     moveCount = 0;
     gameCycle = false;
+
+    thisThread->nodes++;
 
     if (pos.has_game_cycle(ss->ply))
     {
