@@ -592,7 +592,7 @@ namespace {
         {
             if (VALUE_DRAW >= beta)
             {
-                tte->save(posKey, VALUE_DRAW, ttPv, BOUND_LOWER,
+                tte->save(posKey, VALUE_DRAW, ttPv, BOUND_UPPER,
                           depth, MOVE_NONE, VALUE_NONE);
 
                 return VALUE_DRAW;
