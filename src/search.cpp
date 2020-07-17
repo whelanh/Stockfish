@@ -811,8 +811,7 @@ namespace {
            if (nullValue >= beta)
            {
                // Do not return unproven mate or TB scores
-               if (nullValue >= VALUE_TB_WIN_IN_MAX_PLY)
-                   nullValue = beta;
+               nullValue = std::min(nullValue, VALUE_TB_WIN_IN_MAX_PLY);
 
                if (abs(beta) < VALUE_KNOWN_WIN && depth < 11 && beta <= qsearch<NonPV>(pos, ss, beta-1, beta))
                    return nullValue;
@@ -837,18 +836,18 @@ namespace {
        // much above beta, we can (almost) safely prune the previous move.
        if (    depth > 4
            &&  abs(beta) < VALUE_TB_WIN_IN_MAX_PLY
-           && !(   ttHit
-                && tte->depth() >= depth - 3
-                && ttValue != VALUE_NONE
-                && ttValue < probcutBeta))
+           && (   !ttHit
+                || tte->depth() < depth - 3
+                || ttValue == VALUE_NONE
+                || ttValue >= probcutBeta))
        {
-            if (   ttHit
-                && tte->depth() >= depth - 3
-                && ttValue != VALUE_NONE
-                && ttValue >= probcutBeta
-                && ttMove
-                && pos.capture_or_promotion(ttMove))
-                return probcutBeta;
+           if (   ttHit
+               && tte->depth() >= depth - 3
+               && ttValue != VALUE_NONE
+               && ttValue >= probcutBeta
+               && ttMove
+               && pos.capture_or_promotion(ttMove))
+               return probcutBeta;
 
            assert(probcutBeta < VALUE_INFINITE);
            MovePicker mp(pos, ttMove, probcutBeta - ss->staticEval, &captureHistory);
