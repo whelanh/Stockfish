@@ -884,8 +884,11 @@ namespace {
                    {
                        value = std::min(value, VALUE_TB_WIN_IN_MAX_PLY);
 
-                       tte->save(posKey, value_to_tt(value, ss->ply), ttPv,
-                                 BOUND_LOWER, depth - 4, move, ss->staticEval);
+                       if (  !ttHit
+                           || tte->depth() < depth - 4
+                           || ttValue == VALUE_NONE)
+                           tte->save(posKey, value_to_tt(value, ss->ply), ttPv,
+                                     BOUND_LOWER, depth - 4, move, ss->staticEval);
 
                        return value;
                    }
