@@ -33,12 +33,15 @@
 
 namespace Eval {
 
-  bool useNNUE;
+  uint8_t useNNUE;
   std::string eval_file_loaded="None";
 
   void init_NNUE() {
 
-    useNNUE = Options["Use NNUE"];
+    useNNUE = Options["Use NNUE"] == "Hybrid" ? 1
+            : Options["Use NNUE"] == "On" ? 2
+            : 0;
+
     std::string eval_file = std::string(Options["EvalFile"]);
     if (useNNUE && eval_file_loaded != eval_file)
         if (Eval::NNUE::load_eval_file(eval_file))
@@ -935,6 +938,9 @@ Value Eval::evaluate(const Position& pos) {
 
   if (Eval::useNNUE)
   {
+      if (Eval::useNNUE == 2)
+          return NNUE::evaluate(pos) + Tempo;
+
       Value v = eg_value(pos.psq_score());
       // Take NNUE eval only on balanced positions
       if (abs(v) < NNUEThreshold + 20 * pos.count<PAWN>())
