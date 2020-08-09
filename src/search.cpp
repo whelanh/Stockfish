@@ -1,8 +1,6 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
-  Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2004-2020 The Stockfish developers (see AUTHORS file)
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -209,6 +207,8 @@ void MainThread::search() {
   Color us = rootPos.side_to_move();
   Time.init(Limits, us, rootPos.game_ply());
   TT.new_search();
+
+  Eval::verify_NNUE();
 
   if (rootMoves.empty())
   {
@@ -773,7 +773,7 @@ namespace {
            kingDanger = pos.king_danger();
 
        // Step 8. Futility pruning: child node (~30 Elo)
-       if (    depth < 6
+       if (    depth < 8
            && !kingDanger
            &&  eval - futility_margin(depth, improving) >= beta
            &&  eval < VALUE_KNOWN_WIN) // Do not return unproven wins
@@ -784,7 +784,7 @@ namespace {
            && (ss-1)->statScore < 23824
            &&  eval >= beta
            &&  eval >= ss->staticEval
-           &&  ss->staticEval >= beta - 33 * depth - 33 * improving + 112 * ttPv + 311
+           &&  ss->staticEval >= beta - 28 * depth - 28 * improving + 94 * ttPv + 200
            &&  pos.non_pawn_material(us)
            && !kingDanger
            && !(rootDepth > 10 && MoveList<LEGAL>(pos).size() < 6))
@@ -945,6 +945,10 @@ namespace {
                                   thisThread->rootMoves.begin() + thisThread->pvLast, move))
           continue;
 
+      // Check for legality
+      if (!rootNode && !pos.legal(move))
+          continue;
+
       ss->moveCount = ++moveCount;
 
       if (rootNode && thisThread == Threads.main() && Time.elapsed() > 3000)
@@ -1032,7 +1036,7 @@ namespace {
                   && lmrDepth < 6
                   && PieceValue[MG][type_of(movedPiece)] >= PieceValue[MG][type_of(pos.piece_on(to_sq(move)))]
                   && !ss->inCheck
-                  && ss->staticEval + 267 + 391 * lmrDepth
+                  && ss->staticEval + 178 + 261 * lmrDepth
                      + PieceValue[MG][type_of(pos.piece_on(to_sq(move)))] <= alpha)
                   continue;
 
@@ -1052,7 +1056,7 @@ namespace {
       // then that move is singular and should be extended. To verify this we do
       // a reduced search on all the other moves but the ttMove and if the
       // result is lower than ttValue minus a margin then we will extend the ttMove.
-      else if (    depth >= 6
+      else if (    depth >= 7
           &&  move == ttMove
           && !gameCycle
           && !rootNode
@@ -1148,7 +1152,7 @@ namespace {
       // re-searched at full depth.
       if (    depth >= 3
           && !gameCycle
-          &&  moveCount > 1 + 2 * rootNode
+          &&  moveCount > 1 + 2 * rootNode + 2 * (PvNode && abs(bestValue) < 2)
           && (!rootNode || thisThread->best_move_count(move) == 0)
           &&  thisThread->selDepth > depth
           && (  !captureOrPromotion
@@ -1159,6 +1163,13 @@ namespace {
 
       {
           Depth r = reduction(improving, depth, moveCount);
+
+          // Decrease reduction at non-check cut nodes for second move at low depths
+          if (   cutNode
+              && depth <= 10
+              && moveCount <= 2
+              && !ss->inCheck)
+              r--;
 
           // Decrease reduction if the ttHit running average is large
           if (thisThread->ttHitAverage > 473 * ttHitAverageResolution * ttHitAverageWindow / 1024)
