@@ -1128,7 +1128,8 @@ namespace {
             extension = 1;
 
         // Castling extension
-        else if (type_of(move) == CASTLING)
+        else if (   type_of(move) == CASTLING
+                 && popcount(pos.pieces(us) & ~pos.pieces(PAWN) & (to_sq(move) & KingSide ? KingSide : QueenSide)) <= 3)
             extension = 1;
       }
 
