@@ -33,14 +33,12 @@
 
 namespace Eval {
 
-  uint8_t useNNUE;
+  bool useNNUE;
   std::string eval_file_loaded="None";
 
   void init_NNUE() {
 
-    useNNUE = Options["Use NNUE"] == "Hybrid" ? 1
-            : Options["Use NNUE"] == "On" ? 2
-            : 0;
+    useNNUE = Options["Use NNUE"];
 
     std::string eval_file = std::string(Options["EvalFile"]);
     if (useNNUE && eval_file_loaded != eval_file)
@@ -936,17 +934,13 @@ make_v:
 
 Value Eval::evaluate(const Position& pos) {
 
-  if (Eval::useNNUE)
-  {
-      if (Eval::useNNUE == 2)
-          return NNUE::evaluate(pos) + Tempo;
+  Value v = Eval::useNNUE ? NNUE::evaluate(pos) * 5 / 4 + Tempo
+                          : Evaluation<NO_TRACE>(pos).value();
 
-      Value v = eg_value(pos.psq_score());
-      // Take NNUE eval only on balanced positions
-      if (abs(v) < NNUEThreshold)
-         return NNUE::evaluate(pos) + Tempo;
-  }
-  return Evaluation<NO_TRACE>(pos).value();
+  // Guarantee evalution outside of TB range
+  v = Utility::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
+
+  return v;
 }
 
 /// trace() is like evaluate(), but instead of returning a value, it returns
