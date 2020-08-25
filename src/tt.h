@@ -25,20 +25,20 @@
 /// TTEntry struct is the 16 bytes transposition table entry, defined as below:
 ///
 /// key        64 bit
-/// move       16 bit
-/// value      16 bit
-/// eval value 16 bit
+/// depth       8 bit
 /// generation  5 bit
 /// pv node     1 bit
 /// bound type  2 bit
-/// depth       8 bit
+/// move       16 bit
+/// value      16 bit
+/// eval value 16 bit
 
 struct TTEntry {
 
   Move  move()  const { return (Move )move16; }
   Value value() const { return (Value)value16; }
   Value eval()  const { return (Value)eval16; }
-  Depth depth() const { return (Depth)depth8 + DEPTH_NONE; }
+  Depth depth() const { return (Depth)depth8 + DEPTH_OFFSET; }
   bool  is_pv() const { return (bool)(genBound8 & 0x4); }
   Bound bound() const { return (Bound)(genBound8 & 0x3); }
 
@@ -48,11 +48,11 @@ private:
   friend class TranspositionTable;
 
   uint64_t key;
+  uint8_t  depth8;
+  uint8_t  genBound8;
   uint16_t move16;
   int16_t  value16;
   int16_t  eval16;
-  uint8_t  genBound8;
-  uint8_t  depth8;
 };
 
 
