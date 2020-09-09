@@ -538,7 +538,7 @@ namespace {
     Depth extension, newDepth, ttDepth;
     Bound ttBound;
     Value bestValue, value, ttValue, eval, probCutBeta;
-    bool ttHit, formerPv, givesCheck, improving, didLMR, priorCapture, isMate, gameCycle;
+    bool formerPv, givesCheck, improving, didLMR, priorCapture, isMate, gameCycle;
     bool captureOrPromotion, doFullDepthSearch, moveCountPruning, ttCapture, singularQuietLMR, kingDanger;
     Piece movedPiece;
     int moveCount, captureCount, quietCount, rootDepth;
@@ -568,14 +568,14 @@ namespace {
     // position key in case of an excluded move.
     excludedMove = ss->excludedMove;
     posKey = excludedMove == MOVE_NONE ? pos.key() : pos.key() ^ make_key(excludedMove);
-    tte = TT.probe(posKey, ttHit);
-    ttValue = ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
+    tte = TT.probe(posKey, ss->ttHit);
+    ttValue = ss->ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
     ttDepth = tte->depth();
     ttBound = tte->bound();
     ttMove =  rootNode ? thisThread->rootMoves[thisThread->pvIdx].pv[0]
-            : ttHit    ? tte->move() : MOVE_NONE;
+            : ss->ttHit    ? tte->move() : MOVE_NONE;
     if (!excludedMove)
-        ss->ttPv = PvNode || (ttHit && tte->is_pv());
+        ss->ttPv = PvNode || (ss->ttHit && tte->is_pv());
     formerPv = ss->ttPv && !PvNode;
 
     if (   ss->ttPv
@@ -587,7 +587,7 @@ namespace {
 
     // thisThread->ttHitAverage can be used to approximate the running average of ttHit
     thisThread->ttHitAverage =   (ttHitAverageWindow - 1) * thisThread->ttHitAverage / ttHitAverageWindow
-                                + ttHitAverageResolution * ttHit;
+                                + ttHitAverageResolution * ss->ttHit;
 
     if (!rootNode)
     {
@@ -644,7 +644,7 @@ namespace {
 
     // At non-PV nodes we check for an early TT cutoff
     if (  !PvNode
-        && ttHit
+        && ss->ttHit
         && !gameCycle
         && pos.rule50_count() < 88
         && ttDepth >= depth
@@ -707,7 +707,7 @@ namespace {
                                  : v < 0 ? -2 * Tempo : VALUE_DRAW;
 
                 if (    abs(v) <= drawScore
-                    || !ttHit
+                    || !ss->ttHit
                     || (v < -drawScore && beta  > tbValue + 19)
                     || (v >  drawScore && alpha < tbValue - 19))
                 {
@@ -731,7 +731,7 @@ namespace {
     }
     else
     {
-    if (ttHit)
+    if (ss->ttHit)
     {
         // Never assume anything about values stored in TT
         ss->staticEval = eval = tte->eval();
@@ -754,7 +754,7 @@ namespace {
     if (gameCycle)
         ss->staticEval = eval = eval * std::max(0, (100 - pos.rule50_count())) / 100;
 
-    if (!ttHit)
+    if (!ss->ttHit)
         tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
 
     improving =  (ss-2)->staticEval == VALUE_NONE
@@ -839,14 +839,14 @@ namespace {
            // there and in further interactions with transposition table cutoff depth is set to depth - 3
            // because probCut search has depth set to depth - 4 but we also do a move before it
            // so effective depth is equal to depth - 3
-           && (   !ttHit
+           && (   !ss->ttHit
                 || tte->depth() < depth - 3
                 || ttValue == VALUE_NONE
                 || ttValue >= probCutBeta))
        {
            // if ttMove is a capture and value from transposition table is good enough produce probCut
            // cutoff without digging into actual probCut search
-           if (   ttHit
+           if (   ss->ttHit
                && tte->depth() >= depth - 3
                && ttValue != VALUE_NONE
                && ttValue >= probCutBeta
@@ -892,7 +892,7 @@ namespace {
                        value = std::min(value, VALUE_TB_WIN_IN_MAX_PLY);
 
                        // if transposition table doesn't have equal or more deep info write probCut data into it
-                       if (  !ttHit
+                       if (  !ss->ttHit
                            || tte->depth() < depth - 4
                            || ttValue == VALUE_NONE)
                            tte->save(posKey, value_to_tt(value, ss->ply), ttPv,
@@ -1425,7 +1425,7 @@ namespace {
     Move ttMove, move, bestMove;
     Depth ttDepth;
     Value bestValue, value, ttValue, futilityValue, futilityBase, oldAlpha;
-    bool ttHit, pvHit, givesCheck, captureOrPromotion, gameCycle;
+    bool pvHit, givesCheck, captureOrPromotion, gameCycle;
     int moveCount;
 
     if (PvNode)
@@ -1472,13 +1472,13 @@ namespace {
                                                   : DEPTH_QS_NO_CHECKS;
     // Transposition table lookup
     posKey = pos.key();
-    tte = TT.probe(posKey, ttHit);
-    ttValue = ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
-    ttMove = ttHit ? tte->move() : MOVE_NONE;
-    pvHit = ttHit && tte->is_pv();
+    tte = TT.probe(posKey, ss->ttHit);
+    ttValue = ss->ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
+    ttMove = ss->ttHit ? tte->move() : MOVE_NONE;
+    pvHit = ss->ttHit && tte->is_pv();
 
     if (  !PvNode
-        && ttHit
+        && ss->ttHit
         && !gameCycle
         && pos.rule50_count() < 88
         && tte->depth() >= ttDepth
@@ -1496,7 +1496,7 @@ namespace {
     }
     else
     {
-        if (ttHit)
+        if (ss->ttHit)
         {
             // Never assume anything about values stored in TT
             if ((ss->staticEval = bestValue = tte->eval()) == VALUE_NONE)
@@ -1518,7 +1518,7 @@ namespace {
         // Stand pat. Return immediately if static value is at least beta
         if (bestValue >= beta)
         {
-            if (!ttHit)
+            if (!ss->ttHit)
                 tte->save(posKey, value_to_tt(bestValue, ss->ply), false, BOUND_LOWER,
                           DEPTH_NONE, MOVE_NONE, ss->staticEval);
 
@@ -1737,8 +1737,8 @@ namespace {
     else
         captureHistory[moved_piece][to_sq(bestMove)][captured] << bonus1;
 
-    // Extra penalty for a quiet TT or main killer move in previous ply when it gets refuted
-    if (   ((ss-1)->moveCount == 1 || ((ss-1)->currentMove == (ss-1)->killers[0]))
+    // Extra penalty for a quiet early move that was not a TT move or main killer move in previous ply when it gets refuted
+    if (   ((ss-1)->moveCount == 1 + (ss-1)->ttHit || ((ss-1)->currentMove == (ss-1)->killers[0]))
         && !pos.captured_piece())
             update_continuation_histories(ss-1, pos.piece_on(prevSq), prevSq, -bonus1);
 
