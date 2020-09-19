@@ -476,7 +476,7 @@ void Thread::search() {
               totBestMoveChanges += th->bestMoveChanges;
               th->bestMoveChanges = 0;
           }
-          double bestMoveInstability = 1 + totBestMoveChanges / Threads.size();
+          double bestMoveInstability = 1 + 2 * totBestMoveChanges / Threads.size();
 
           TimePoint elapsedT = Time.elapsed();
           TimePoint optimumT = Time.optimum();
@@ -637,9 +637,7 @@ namespace {
     // starts with statScore = 0. Later grandchildren start with the last calculated
     // statScore of the previous grandchild. This influences the reduction rules in
     // LMR which are based on the statScore of parent position.
-    if (rootNode)
-        (ss+4)->statScore = 0;
-    else
+    if (!rootNode)
         (ss+2)->statScore = 0;
 
     // At non-PV nodes we check for an early TT cutoff
@@ -1041,7 +1039,6 @@ namespace {
               // Futility pruning for captures
               if (   !givesCheck
                   && lmrDepth < 6
-                  && PieceValue[MG][type_of(movedPiece)] >= PieceValue[MG][type_of(pos.piece_on(to_sq(move)))]
                   && !ss->inCheck
                   && ss->staticEval + 169 + 244 * lmrDepth
                      + PieceValue[MG][type_of(pos.piece_on(to_sq(move)))] <= alpha)
@@ -1126,11 +1123,6 @@ namespace {
         // Last captures extension
         else if (   PieceValue[EG][pos.captured_piece()] > PawnValueEg
                  && pos.non_pawn_material() <= 2 * RookValueMg)
-            extension = 1;
-
-        // Castling extension
-        else if (   type_of(move) == CASTLING
-                 && popcount(pos.pieces(us) & ~pos.pieces(PAWN) & (to_sq(move) & KingSide ? KingSide : QueenSide)) <= 2)
             extension = 1;
       }
 
