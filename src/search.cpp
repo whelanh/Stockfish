@@ -175,7 +175,7 @@ namespace {
 void Search::init() {
 
   for (int i = 1; i < MAX_MOVES; ++i)
-      Reductions[i] = int((22.0 + std::log(Threads.size())) * std::log(i));
+      Reductions[i] = int((22.0 + 2 * std::log(Threads.size())) * std::log(i));
 }
 
 
@@ -208,7 +208,7 @@ void MainThread::search() {
   Time.init(Limits, us, rootPos.game_ply());
   TT.new_search();
 
-  Eval::verify_NNUE();
+  Eval::NNUE::verify();
 
   if (rootMoves.empty())
   {
@@ -422,10 +422,7 @@ void Thread::search() {
                   beta = std::min(bestValue + delta, VALUE_INFINITE);
 
               else
-              {
-                  ++rootMoves[pvIdx].bestMoveCount;
                   break;
-              }
 
               delta += delta / 4 + 5;
 
@@ -1146,7 +1143,7 @@ namespace {
       // re-searched at full depth.
       if (    depth >= 3
           && !gameCycle
-          &&  moveCount > 1 + 2 * rootNode + 2 * (PvNode && abs(bestValue) < 2)
+          &&  moveCount > 1 + 2 * rootNode
           &&  thisThread->selDepth > depth
           && (  !captureOrPromotion
               || moveCountPruning
@@ -1217,14 +1214,14 @@ namespace {
           }
           else
           {
-            // Increase reduction for captures/promotions if late move and at low depth
-            if (depth < 8 && moveCount > 2)
-                r++;
+              // Increase reduction for captures/promotions if late move and at low depth
+              if (depth < 8 && moveCount > 2)
+                  r++;
 
-            // Unless giving check, this capture is likely bad
-            if (   !givesCheck
-                && ss->staticEval + PieceValue[EG][pos.captured_piece()] + 213 * depth <= alpha)
-                r++;
+              // Unless giving check, this capture is likely bad
+              if (   !givesCheck
+                  && ss->staticEval + PieceValue[EG][pos.captured_piece()] + 213 * depth <= alpha)
+                  r++;
           }
 
           Depth rr = newDepth / (2 + ss->ply / 3);
@@ -1591,6 +1588,7 @@ namespace {
                                                                 [pos.moved_piece(move)]
                                                                 [to_sq(move)];
 
+      // CounterMove based pruning
       if (  !captureOrPromotion
           && moveCount
           && (*contHist[0])[pos.moved_piece(move)][to_sq(move)] < CounterMovePruneThreshold
