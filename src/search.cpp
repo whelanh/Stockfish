@@ -175,7 +175,7 @@ namespace {
 void Search::init() {
 
   for (int i = 1; i < MAX_MOVES; ++i)
-      Reductions[i] = int((22.0 + 2 * std::log(Threads.size())) * std::log(i));
+      Reductions[i] = int((22.0 + 2 * std::log(Threads.size())) * std::log(i + 0.25 * std::log(i)));
 }
 
 
@@ -786,7 +786,7 @@ namespace {
            assert(eval - beta >= 0);
 
            // Null move dynamic reduction based on depth and value
-           Depth R = (817 + 71 * depth) / 213 + std::min(int(eval - beta) / 192, 3);
+           Depth R = (982 + 85 * depth) / 256 + std::min(int(eval - beta) / 192, 3);
 
            if (   depth < 11
                || ttValue >= beta
@@ -976,7 +976,10 @@ namespace {
       if (isMate)
       {
           ss->currentMove = move;
-          ss->continuationHistory = &thisThread->continuationHistory[ss->inCheck][priorCapture][movedPiece][to_sq(move)];
+          ss->continuationHistory = &thisThread->continuationHistory[ss->inCheck]
+                                                                    [captureOrPromotion]
+                                                                    [movedPiece]
+                                                                    [to_sq(move)];
           value = mate_in(ss->ply+1);
 
           if (PvNode && (moveCount == 1 || (value > alpha && (rootNode || value < beta))))
