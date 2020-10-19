@@ -905,7 +905,7 @@ namespace {
                                                         : pos.count<BISHOP>(WHITE) + pos.count<KNIGHT>(WHITE));
         else
             sf = std::min(sf, 36 + 7 * pos.count<PAWN>(strongSide)) - 4 * !pawnsOnBothFlanks;
-      
+
         sf -= 4 * !pawnsOnBothFlanks;
     }
 
@@ -1006,7 +1006,7 @@ make_v:
 
 Value Eval::evaluate(const Position& pos) {
 
-  Value v = Eval::useNNUE ? NNUE::evaluate(pos) * 5 / 4 + Tempo
+  Value v = Eval::useNNUE ? NNUE::evaluate(pos) + Tempo
                           : Evaluation<NO_TRACE>(pos).value();
 
   // Guarantee evaluation does not hit the tablebase range
