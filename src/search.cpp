@@ -1540,11 +1540,10 @@ namespace {
 
       moveCount++;
 
-      if (!PvNode)
+      if (!PvNode && !ss->inCheck)
       {
          // Futility pruning
-         if (   !ss->inCheck
-             && !givesCheck
+         if (   !givesCheck
              &&  futilityBase > -VALUE_KNOWN_WIN
              && !pos.advanced_pawn_push(move))
          {
@@ -1570,8 +1569,7 @@ namespace {
          }
 
          // Do not search moves with negative SEE values
-         if (   !ss->inCheck
-             && !(givesCheck && pos.is_discovery_check_on_king(~pos.side_to_move(), move))
+         if (   !(givesCheck && pos.is_discovery_check_on_king(~pos.side_to_move(), move))
              && !pos.see_ge(move))
              continue;
       }
