@@ -736,8 +736,7 @@ namespace {
     if (ss->ttHit)
     {
         // Never assume anything about values stored in TT
-        ss->staticEval = eval = tte->eval();
-        if (eval == VALUE_NONE)
+        if ((ss->staticEval = eval = tte->eval()) == VALUE_NONE)
             ss->staticEval = eval = evaluate(pos);
 
         // Can ttValue be used as a better position evaluation?
@@ -857,14 +856,13 @@ namespace {
            // because probCut search has depth set to depth - 4 but we also do a move before it
            // so effective depth is equal to depth - 3
            && (   !ss->ttHit
-                || tte->depth() < depth - 3
-                || ttValue == VALUE_NONE
+                || ttDepth < depth - 3
                 || ttValue >= probCutBeta))
        {
            // if ttMove is a capture and value from transposition table is good enough produce probCut
            // cutoff without digging into actual probCut search
            if (   ss->ttHit
-               && tte->depth() >= depth - 3
+               && ttDepth >= depth - 3
                && ttValue != VALUE_NONE
                && ttValue >= probCutBeta
                && ttMove
@@ -910,8 +908,7 @@ namespace {
 
                        // if transposition table doesn't have equal or more deep info write probCut data into it
                        if (  !ss->ttHit
-                           || tte->depth() < depth - 4
-                           || ttValue == VALUE_NONE)
+                           || ttDepth < depth - 4)
                            tte->save(posKey, value_to_tt(value, ss->ply), ttPv,
                                      BOUND_LOWER, depth - 4, move, ss->staticEval);
 
@@ -1077,13 +1074,12 @@ namespace {
       // result is lower than ttValue minus a margin then we will extend the ttMove.
       else if (    depth >= 7
           &&  move == ttMove
-          && !gameCycle
           && !rootNode
           && !excludedMove // Avoid recursive singular search
           &&  ttValue != VALUE_NONE
           &&  abs(beta) < VALUE_TB_WIN_IN_MAX_PLY
-          && (tte->bound() & BOUND_LOWER)
-          &&  tte->depth() >= depth - 3)
+          && (ttBound & BOUND_LOWER)
+          &&  ttDepth >= depth - 3)
       {
           Value singularBeta = std::max(ttValue - ((formerPv + 4) * depth) / 2, VALUE_TB_LOSS_IN_MAX_PLY);
           Depth singularDepth = (depth - 1 + 3 * formerPv) / 2;
@@ -1108,8 +1104,8 @@ namespace {
             if (singularBeta >= beta)
                 return std::min(singularBeta, VALUE_TB_WIN_IN_MAX_PLY);
 
-           // If the eval of ttMove is greater than beta we try also if there is another
-           // move that pushes it over beta, if so also produce a cutoff.
+            // If the eval of ttMove is greater than beta we try also if there is another
+            // move that pushes it over beta, if so also produce a cutoff.
             else if (ttValue >= beta)
             {
                 ss->excludedMove = move;
@@ -1431,6 +1427,7 @@ namespace {
     Key posKey;
     Move ttMove, move, bestMove;
     Depth ttDepth;
+    Bound ttBound;
     Value bestValue, value, ttValue, futilityValue, futilityBase, oldAlpha;
     bool pvHit, givesCheck, captureOrPromotion, gameCycle;
     int moveCount;
@@ -1481,6 +1478,7 @@ namespace {
     posKey = pos.key();
     tte = TT.probe(posKey, ss->ttHit);
     ttValue = ss->ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
+    ttBound = tte->bound();
     ttMove = ss->ttHit ? tte->move() : MOVE_NONE;
     pvHit = ss->ttHit && tte->is_pv();
 
@@ -1491,8 +1489,8 @@ namespace {
         && tte->depth() >= ttDepth
         && ttValue != VALUE_NONE // Only in case of TT access race
         && (ttValue != VALUE_DRAW || VALUE_DRAW >= beta)
-        && (ttValue >= beta ? (tte->bound() & BOUND_LOWER)
-                            : (tte->bound() & BOUND_UPPER)))
+        && (ttValue >= beta ? (ttBound & BOUND_LOWER)
+                            : (ttBound & BOUND_UPPER)))
         return ttValue;
 
     // Evaluate the position statically
@@ -1511,7 +1509,7 @@ namespace {
 
             // Can ttValue be used as a better position evaluation?
             if (    ttValue != VALUE_NONE
-                && (tte->bound() & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
+                && (ttBound & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
                 bestValue = ttValue;
         }
         else
