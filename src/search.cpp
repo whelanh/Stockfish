@@ -754,6 +754,8 @@ namespace {
             ss->staticEval = eval = -(ss-1)->staticEval + 2 * Tempo;
     }
 
+    ss->staticEval = eval = eval * std::max(0, (100 - pos.rule50_count())) / 100;
+
     if (gameCycle)
         ss->staticEval = eval = eval * std::max(0, (100 - pos.rule50_count())) / 100;
 
@@ -1519,6 +1521,8 @@ namespace {
             (ss-1)->currentMove != MOVE_NULL ? evaluate(pos)
                                              : -(ss-1)->staticEval + 2 * Tempo;
 
+        ss->staticEval = bestValue = bestValue * std::max(0, (100 - pos.rule50_count())) / 100;
+
         if (gameCycle)
             ss->staticEval = bestValue = bestValue * std::max(0, (100 - pos.rule50_count())) / 100;
 
@@ -1607,6 +1611,7 @@ namespace {
 
       // CounterMove based pruning
       if (  !captureOrPromotion
+          && !PvNode
           && bestValue > VALUE_TB_LOSS_IN_MAX_PLY
           && (*contHist[0])[pos.moved_piece(move)][to_sq(move)] < CounterMovePruneThreshold
           && (*contHist[1])[pos.moved_piece(move)][to_sq(move)] < CounterMovePruneThreshold)
