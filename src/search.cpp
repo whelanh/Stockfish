@@ -624,7 +624,8 @@ namespace {
         // signs applies also in the opposite condition of being mated instead of giving
         // mate. In this case return a fail-high score.
         if (alpha >= mate_in(ss->ply+1))
-            return alpha;
+            return mate_in(ss->ply+1);
+
     }
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
@@ -855,20 +856,8 @@ namespace {
            // there and in further interactions with transposition table cutoff depth is set to depth - 3
            // because probCut search has depth set to depth - 4 but we also do a move before it
            // so effective depth is equal to depth - 3
-           && (   !ss->ttHit
-                || ttDepth < depth - 3
-                || ttValue >= probCutBeta))
+           && (!ss->ttHit || ttDepth < depth - 3))
        {
-           // if ttMove is a capture and value from transposition table is good enough produce probCut
-           // cutoff without digging into actual probCut search
-           if (   ss->ttHit
-               && ttDepth >= depth - 3
-               && ttValue != VALUE_NONE
-               && ttValue >= probCutBeta
-               && ttMove
-               && pos.capture_or_promotion(ttMove))
-               return probCutBeta;
-
            assert(probCutBeta < VALUE_INFINITE);
            MovePicker mp(pos, ttMove, probCutBeta - ss->staticEval, &captureHistory);
            int probCutCount = 0;
@@ -907,10 +896,8 @@ namespace {
                        value = std::min(value, VALUE_TB_WIN_IN_MAX_PLY);
 
                        // if transposition table doesn't have equal or more deep info write probCut data into it
-                       if (  !ss->ttHit
-                           || ttDepth < depth - 4)
-                           tte->save(posKey, value_to_tt(value, ss->ply), ttPv,
-                                     BOUND_LOWER, depth - 4, move, ss->staticEval);
+                       tte->save(posKey, value_to_tt(value, ss->ply), ttPv,
+                                 BOUND_LOWER, depth - 3, move, ss->staticEval);
 
                        return value;
                    }
@@ -964,10 +951,6 @@ namespace {
       // of lower "TB rank" if we are in a TB root position.
       if (rootNode && !std::count(thisThread->rootMoves.begin() + thisThread->pvIdx,
                                   thisThread->rootMoves.begin() + thisThread->pvLast, move))
-          continue;
-
-      // Check for legality
-      if (!rootNode && !pos.legal(move))
           continue;
 
       ss->moveCount = ++moveCount;
@@ -1468,7 +1451,7 @@ namespace {
         return !ss->inCheck ? evaluate(pos) : VALUE_DRAW;
 
     if (alpha >= mate_in(ss->ply+1))
-        return alpha;
+        return mate_in(ss->ply+1);
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
