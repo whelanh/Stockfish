@@ -1101,7 +1101,7 @@ namespace {
       }
 
       // Check extension (~2 Elo)
-      else if (!extension)
+      if (!extension)
       {
         if (    givesCheck
             && (pos.is_discovered_check_on_king(~us, move) || pos.see_ge(move)))
