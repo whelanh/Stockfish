@@ -54,7 +54,8 @@
 
 
 using namespace std;
-using namespace Eval::NNUE;
+
+namespace Stockfish {
 
 namespace Eval {
 
@@ -254,11 +255,12 @@ namespace {
     S(0, 0), S(3, 44), S(37, 68), S(42, 60), S(0, 39), S(58, 43)
   };
 
+  constexpr Value CorneredBishop = Value(50);
+
   // Assorted bonuses and penalties
   constexpr Score UncontestedOutpost  = S(  1, 10);
   constexpr Score BishopOnKingRing    = S( 24,  0);
   constexpr Score BishopXRayPawns     = S(  4,  5);
-  constexpr Score CorneredBishop      = S( 50, 50);
   constexpr Score FlankAttacks        = S(  8,  0);
   constexpr Score Hanging             = S( 69, 36);
   constexpr Score KnightOnQueen       = S( 16, 11);
@@ -393,8 +395,9 @@ namespace {
 
     attackedBy[Us][Pt] = 0;
 
-    while (b1) {
-        Square s = pop_lsb(&b1);
+    while (b1)
+    {
+        Square s = pop_lsb(b1);
 
         // Find attacked squares, including x-ray attacks for bishops and rooks
         b = Pt == BISHOP ? attacks_bb<BISHOP>(s, pos.pieces() ^ pos.pieces(QUEEN))
@@ -422,7 +425,6 @@ namespace {
             score += BishopOnKingRing;
 
         int mob = popcount(b & mobilityArea[Us]);
-
         mobility[Us] += MobilityBonus[Pt - 2][mob];
 
         if (Pt == BISHOP || Pt == KNIGHT)
@@ -475,9 +477,8 @@ namespace {
                 {
                     Direction d = pawn_push(Us) + (file_of(s) == FILE_A ? EAST : WEST);
                     if (pos.piece_on(s + d) == make_piece(Us, PAWN))
-                        score -= !pos.empty(s + d + pawn_push(Us))                ? CorneredBishop * 4
-                                : pos.piece_on(s + d + d) == make_piece(Us, PAWN) ? CorneredBishop * 2
-                                                                                  : CorneredBishop;
+                        score -= !pos.empty(s + d + pawn_push(Us)) ? 4 * make_score(CorneredBishop, CorneredBishop)
+                                                                   : 3 * make_score(CorneredBishop, CorneredBishop);
                 }
             }
         }
@@ -656,11 +657,11 @@ namespace {
     {
         b = (defended | weak) & (attackedBy[Us][KNIGHT] | attackedBy[Us][BISHOP]);
         while (b)
-            score += ThreatByMinor[type_of(pos.piece_on(pop_lsb(&b)))];
+            score += ThreatByMinor[type_of(pos.piece_on(pop_lsb(b)))];
 
         b = weak & attackedBy[Us][ROOK];
         while (b)
-            score += ThreatByRook[type_of(pos.piece_on(pop_lsb(&b)))];
+            score += ThreatByRook[type_of(pos.piece_on(pop_lsb(b)))];
 
         if (weak & attackedBy[Us][KING])
             score += ThreatByKing;
@@ -758,7 +759,7 @@ namespace {
 
     while (b)
     {
-        Square s = pop_lsb(&b);
+        Square s = pop_lsb(b);
 
         assert(!(pos.pieces(Them, PAWN) & forward_file_bb(Us, s + Up)));
 
@@ -1031,7 +1032,43 @@ make_v:
     return (pos.side_to_move() == WHITE ? v : -v) + Tempo;
   }
 
-} // namespace
+
+  /// Fisher Random Chess: correction for cornered bishops, to fix chess960 play with NNUE
+
+  Value fix_FRC(const Position& pos) {
+
+    constexpr Bitboard Corners =  1ULL << SQ_A1 | 1ULL << SQ_H1 | 1ULL << SQ_A8 | 1ULL << SQ_H8;
+
+    if (!(pos.pieces(BISHOP) & Corners))
+        return VALUE_ZERO;
+
+    int correction = 0;
+
+    if (   pos.piece_on(SQ_A1) == W_BISHOP
+        && pos.piece_on(SQ_B2) == W_PAWN)
+        correction += !pos.empty(SQ_B3) ? -CorneredBishop * 4
+                                        : -CorneredBishop * 3;
+
+    if (   pos.piece_on(SQ_H1) == W_BISHOP
+        && pos.piece_on(SQ_G2) == W_PAWN)
+        correction += !pos.empty(SQ_G3) ? -CorneredBishop * 4
+                                        : -CorneredBishop * 3;
+
+    if (   pos.piece_on(SQ_A8) == B_BISHOP
+        && pos.piece_on(SQ_B7) == B_PAWN)
+        correction += !pos.empty(SQ_B6) ? CorneredBishop * 4
+                                        : CorneredBishop * 3;
+
+    if (   pos.piece_on(SQ_H8) == B_BISHOP
+        && pos.piece_on(SQ_G7) == B_PAWN)
+        correction += !pos.empty(SQ_G6) ? CorneredBishop * 4
+                                        : CorneredBishop * 3;
+
+    return pos.side_to_move() == WHITE ?  Value(correction)
+                                       : -Value(correction);
+  }
+
+} // namespace Eval
 
 
 /// evaluate() is the evaluator for the outer world. It returns a static
@@ -1039,7 +1076,7 @@ make_v:
 
 Value Eval::evaluate(const Position& pos) {
 
-  Value v = Eval::useNNUE ? NNUE::evaluate(pos) + Tempo
+  Value v = Eval::useNNUE ? NNUE::evaluate(pos) + Tempo + (pos.is_chess960() ? fix_FRC(pos) : 0)
                           : Evaluation<NO_TRACE>(pos).value();
 
   // Guarantee evaluation does not hit the tablebase range
@@ -1106,3 +1143,5 @@ std::string Eval::trace(const Position& pos) {
 
   return ss.str();
 }
+
+} // namespace Stockfish
