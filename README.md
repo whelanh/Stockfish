@@ -51,22 +51,15 @@ This distribution of Stockfish consists of the following files:
   * a file with the .nnue extension, storing the neural network for the NNUE
     evaluation. Binary distributions will have this file embedded.
 
-Note: to use the NNUE evaluation, the additional data file with neural network parameters
-needs to be available. Normally, this file is already embedded in the binary or it can be downloaded.
-The filename for the default (recommended) net can be found as the default
-value of the `EvalFile` UCI option, with the format `nn-[SHA256 first 12 digits].nnue`
-(for instance, `nn-c157e0a5755b.nnue`). This file can be downloaded from
-```
-https://tests.stockfishchess.org/api/nn/[filename]
-```
-replacing `[filename]` as needed.
 
-## UCI options
+## The UCI protocol and available options
 
-Currently, Crystal has the following UCI options:
+The Universal Chess Interface (UCI) is a standard protocol used to communicate with a chess engine,
+and is the recommended way to do so for typical graphical user interfaces (GUI) or chess tools.
 
-  * #### Debug Log File
-    Write all communication to and from the engine into a text file.
+Stockfish implements most commands as described in [the UCI protocol](https://www.shredderchess.com/download/div/uci.zip)
+
+For users, the following UCI options, which can typically be set via a GUI, are available in Stockfish:
 
   * #### Threads
     The number of CPU threads used for searching a position. For best performance, set
@@ -166,6 +159,24 @@ Currently, Crystal has the following UCI options:
 
   * #### Debug Log File
     Write all communication to and from the engine into a text file.
+
+For developers the following non-standard commands might be of interest, mainly useful for debugging:
+
+  * #### compiler
+    Give information about the compiler and environment used for building a binary.
+
+  * #### flip
+    Flips the side to move.
+
+  * #### bench ttSize threads limit fenFile limitType evalType
+    Performs a standard benchmark using various options. The signature or standard node
+    count is obtained using all defaults. `bench` is currently `bench 16 1 13 default depth mixed`.
+
+  * #### d
+    Display the current position, with ascii art and fen.
+
+  * #### eval
+    Return the evaluation of the current position.
 
 ## A note on classical evaluation versus NNUE evaluation
 
