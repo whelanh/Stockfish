@@ -168,13 +168,13 @@ namespace Stockfish::Eval::NNUE {
 
       int materialist = psqt;
       int positional  = output[0];
-      int margin = 44;
+      int margin = 176;
 
       int delta_npm = abs(pos.non_pawn_material(WHITE) - pos.non_pawn_material(BLACK));
 
       delta_npm = std::min(margin, delta_npm);
 
-      int entertainment = adjusted * 8 * (margin - delta_npm) / margin;
+      int entertainment = adjusted * 10 * (margin - delta_npm) / margin;
 
       int A = 128 - entertainment;
       int B = 128 + entertainment;
