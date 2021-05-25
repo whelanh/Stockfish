@@ -1101,7 +1101,7 @@ make_v:
 
 Value Eval::evaluate(const Position& pos) {
 
-  Value v = Eval::useNNUE ? NNUE::evaluate(pos) + (pos.is_chess960() ? fix_FRC(pos) : 0)
+  Value v = Eval::useNNUE ? NNUE::evaluate(pos, true) + (pos.is_chess960() ? fix_FRC(pos) : 0)
                           : Evaluation<NO_TRACE>(pos).value();
 
   // Guarantee evaluation does not hit the tablebase range

@@ -66,7 +66,7 @@ namespace {
 
   // Futility margin
   Value futility_margin(Depth d, bool improving) {
-    return Value(231 * (d - improving));
+    return Value(214 * (d - improving));
   }
 
   // Reductions lookup table, initialized at startup
@@ -74,7 +74,7 @@ namespace {
 
   Depth reduction(bool i, Depth d, int mn) {
     int r = Reductions[d] * Reductions[mn];
-    return (r + 503) / 1024 + (!i && r > 915);
+    return (r + 534) / 1024 + (!i && r > 904);
   }
 
   constexpr int futility_move_count(bool improving, Depth depth) {
@@ -83,7 +83,7 @@ namespace {
 
   // History and stats update bonus, based on depth
   int stat_bonus(Depth d) {
-    return d > 14 ? 66 : 6 * d * d + 231 * d - 206;
+    return d > 14 ? 73 : 6 * d * d + 229 * d - 215;
   }
 
   // Breadcrumbs are used to mark nodes as being searched by a given thread
@@ -800,10 +800,10 @@ namespace {
 
        // Step 8. Null move search with verification search (~40 Elo)
        if (   (ss-1)->currentMove != MOVE_NULL
-           && (ss-1)->statScore < 24185
+           && (ss-1)->statScore < 23767
            &&  eval >= beta
            &&  eval >= ss->staticEval
-           &&  ss->staticEval >= beta - 24 * depth - 34 * improving + 162 * ss->ttPv + 159
+           &&  ss->staticEval >= beta - 20 * depth - 22 * improving + 168 * ss->ttPv + 159
            &&  pos.non_pawn_material(us)
            && !kingDanger
            && !(rootDepth > 10 && MoveList<LEGAL>(pos).size() < 6))
@@ -811,7 +811,7 @@ namespace {
            assert(eval - beta >= 0);
 
            // Null move dynamic reduction based on depth and value
-           Depth R = (1062 + 68 * depth) / 256 + std::min(int(eval - beta) / 190, 3);
+           Depth R = (1090 + 81 * depth) / 256 + std::min(int(eval - beta) / 205, 3);
 
            if (   depth < 11
                || ttValue >= beta
@@ -1082,9 +1082,10 @@ namespace {
           {
               extension = 1;
               singularQuietLMR = !ttCapture;
+
               if (  !PvNode
                   && depth < rootDepth - ss->ply
-                  && value < singularBeta - 140)
+                  && value < singularBeta - 93)
                   extension = 2;
           }
 
@@ -1169,25 +1170,25 @@ namespace {
           if (singularQuietLMR)
               r--;
 
+          // Increase reduction for cut nodes (~3 Elo)
+          if (cutNode)
+              r += 1 + !captureOrPromotion;
+
           if (!captureOrPromotion)
           {
               // Increase reduction if ttMove is a capture (~3 Elo)
               if (ttCapture)
                   r++;
 
-              // Increase reduction for cut nodes (~3 Elo)
-              if (cutNode)
-                  r += 2;
-
               ss->statScore =  thisThread->mainHistory[us][from_to(move)]
                              + (*contHist[0])[movedPiece][to_sq(move)]
                              + (*contHist[1])[movedPiece][to_sq(move)]
                              + (*contHist[3])[movedPiece][to_sq(move)]
-                             - 4791;
+                             - 4923;
 
               // Decrease/increase reduction for moves with a good/bad history (~30 Elo)
               if (!ss->inCheck)
-                  r -= ss->statScore / 14790;
+                  r -= ss->statScore / 14721;
           }
 
           Depth rr = newDepth / (2 + ss->ply / 3);
