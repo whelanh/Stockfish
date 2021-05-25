@@ -793,6 +793,7 @@ namespace {
        // Step 7. Futility pruning: child node (~30 Elo)
        if (    depth < 9
            && !kingDanger
+           &&  abs(alpha) < VALUE_KNOWN_WIN
            &&  eval - futility_margin(depth, improving) >= beta
            &&  eval < VALUE_KNOWN_WIN) // Do not return unproven wins
            return eval;
@@ -918,21 +919,6 @@ namespace {
     } // In check search starts here
 
     ttCapture = ttMove && pos.capture_or_promotion(ttMove);
-
-    // Step 11. A small Probcut idea, when we are in check
-    probCutBeta = beta + 400;
-    if (   ss->inCheck
-        && !PvNode
-        && depth >= 4
-        && ttCapture
-        && (tte->bound() & BOUND_LOWER)
-        && tte->depth() >= depth - 3
-        && ttValue >= probCutBeta
-        && abs(ttValue) <= VALUE_KNOWN_WIN
-        && abs(beta) <= VALUE_KNOWN_WIN
-       )
-        return probCutBeta;
-
 
     const PieceToHistory* contHist[] = { (ss-1)->continuationHistory, (ss-2)->continuationHistory,
                                           nullptr                   , (ss-4)->continuationHistory,
@@ -1154,6 +1140,7 @@ namespace {
       // cases where we extend a son if it has good chances to be "interesting".
       if (    depth >= 3
           && !gameCycle
+          && !givesCheck
           &&  moveCount > 1 + 2 * rootNode
           &&  thisThread->selDepth > depth
           && (!PvNode || ss->ply > 1 || thisThread->id() % 4 != 3)
