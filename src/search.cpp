@@ -1022,7 +1022,7 @@ moves_loop: // When in check, search starts from here
               if (!pos.see_ge(move, Value(-218) * depth)) // (~25 Elo)
                   continue;
           }
-          else
+          else if (type_of(pos.moved_piece(move)) != KNIGHT || !pos.see_ge(move))
           {
               // Continuation history based pruning (~20 Elo)
               if (   lmrDepth < 5
