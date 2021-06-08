@@ -573,6 +573,7 @@ namespace {
     // Step 1. Initialize node
     Thread* thisThread = pos.this_thread();
     ss->inCheck        = pos.checkers();
+    ss->pseudoPV       = false;
     priorCapture       = pos.captured_piece();
     Color us           = pos.side_to_move();
     moveCount          = captureCount = quietCount = ss->moveCount = 0;
@@ -984,6 +985,12 @@ moves_loop: // When in check, search starts from here
 
       ss->moveCount = ++moveCount;
 
+      if (rootNode || (moveCount == 1 && (ss-1)->pseudoPV))
+          ss->pseudoPV = true;
+
+      else
+          ss->pseudoPV = false;
+
       if (rootNode && thisThread == Threads.main() && Time.elapsed() > 3000)
           sync_cout << "info depth " << depth
                     << " currmove " << UCI::move(move, pos.is_chess960())
@@ -1132,7 +1139,7 @@ moves_loop: // When in check, search starts from here
       {
           Depth r = reduction(improving, depth, moveCount);
 
-          if (PvNode)
+          if (PvNode || (ss-1)->pseudoPV)
               r--;
 
           // Decrease reduction if the ttHit running average is large (~0 Elo)
