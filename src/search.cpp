@@ -573,6 +573,7 @@ namespace {
     // Step 1. Initialize node
     Thread* thisThread = pos.this_thread();
     ss->inCheck        = pos.checkers();
+    ss->pseudoPV       = false;
     priorCapture       = pos.captured_piece();
     Color us           = pos.side_to_move();
     moveCount          = captureCount = quietCount = ss->moveCount = 0;
@@ -791,6 +792,7 @@ namespace {
 
     // Step 7. Futility pruning: child node (~50 Elo)
     if (   !PvNode
+        && !(ss-1)->pseudoPV
         &&  depth < 9
         &&  eval - futility_margin(depth, improving) >= beta
         &&  eval < VALUE_KNOWN_WIN) // Do not return unproven wins
@@ -798,6 +800,7 @@ namespace {
 
     // Step 8. Null move search with verification search (~40 Elo)
     if (   !PvNode
+        && !(ss-1)->pseudoPV
         && (ss-1)->currentMove != MOVE_NULL
         && (ss-1)->statScore < 23767
         &&  eval >= beta
@@ -852,6 +855,7 @@ namespace {
     // If we have a good enough capture and a reduced search returns a value
     // much above beta, we can (almost) safely prune the previous move.
     if (   !PvNode
+        && !(ss-1)->pseudoPV
         &&  depth > 4
         &&  abs(beta) < VALUE_TB_WIN_IN_MAX_PLY
         // if value from transposition table is lower than probCutBeta, don't attempt probCut
@@ -926,6 +930,7 @@ moves_loop: // When in check, search starts from here
     probCutBeta = beta + 409;
     if (   ss->inCheck
         && !PvNode
+        && !(ss-1)->pseudoPV
         && depth >= 4
         && ttCapture
         && (tte->bound() & BOUND_LOWER)
@@ -983,6 +988,12 @@ moves_loop: // When in check, search starts from here
           continue;
 
       ss->moveCount = ++moveCount;
+
+      if (rootNode || (moveCount == 1 && (ss-1)->pseudoPV))
+          ss->pseudoPV = true;
+
+      else
+          ss->pseudoPV = false;
 
       if (rootNode && thisThread == Threads.main() && Time.elapsed() > 3000)
           sync_cout << "info depth " << depth
@@ -1132,7 +1143,7 @@ moves_loop: // When in check, search starts from here
       {
           Depth r = reduction(improving, depth, moveCount);
 
-          if (PvNode)
+          if (PvNode || (ss-1)->pseudoPV)
               r--;
 
           // Decrease reduction if the ttHit running average is large (~0 Elo)
