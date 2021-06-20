@@ -1091,11 +1091,17 @@ Value Eval::evaluate(const Position& pos) {
       // Scale and shift NNUE for compatibility with search and classical evaluation
       auto  adjusted_NNUE = [&]()
       {
-         int scale =   903
-                     + 32 * pos.count<PAWN>()
-                     + 32 * pos.non_pawn_material() / 1024;
+         const int maxNonPawnMaterial = 2 * QueenValueMg + 4 * (RookValueMg + BishopValueMg + KnightValueMg);
+         const int maxMaterialPercent = 45;
+         const int maxPawnPercent     = 44;
 
-         Value nnue = NNUE::evaluate(pos, true) * scale / 1024;
+         int taperedMaterialPercent, taperedPawnPercent;
+
+         taperedMaterialPercent = maxMaterialPercent * pos.non_pawn_material() / maxNonPawnMaterial;
+
+         taperedPawnPercent = maxPawnPercent * pos.count<PAWN>() / 16;
+
+         Value nnue = NNUE::evaluate(pos, true) * (100 + taperedMaterialPercent + taperedPawnPercent) / 100;
 
          if (pos.is_chess960())
              nnue += fix_FRC(pos);
