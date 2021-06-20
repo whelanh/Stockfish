@@ -1092,8 +1092,8 @@ Value Eval::evaluate(const Position& pos) {
       auto  adjusted_NNUE = [&]()
       {
          const int maxNonPawnMaterial = 2 * QueenValueMg + 4 * (RookValueMg + BishopValueMg + KnightValueMg);
-         const int maxMaterialPercent = 45;
-         const int maxPawnPercent     = 44;
+         const int maxMaterialPercent = 38;
+         const int maxPawnPercent     = 37;
          const int basePercent        = 88;
 
          int taperedMaterialPercent, taperedPawnPercent;
