@@ -862,10 +862,8 @@ namespace {
        // much above beta, we can (almost) safely prune the previous move.
        if (    depth > 4
            &&  abs(beta) < VALUE_TB_WIN_IN_MAX_PLY
-           // if value from transposition table is lower than probCutBeta, don't attempt probCut
-           // there and in further interactions with transposition table cutoff depth is set to depth - 3
-           // because probCut search has depth set to depth - 4 but we also do a move before it
-           // so effective depth is equal to depth - 3
+           // If we don't have a ttHit or our ttDepth is not greater our
+           // reduced depth search, continue with the probcut.
            && (!ss->ttHit || ttDepth < depth - 3))
        {
            assert(probCutBeta < VALUE_INFINITE);
