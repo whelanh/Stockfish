@@ -179,7 +179,7 @@ namespace {
 void Search::init() {
 
   for (int i = 1; i < MAX_MOVES; ++i)
-      Reductions[i] = int(21.3 * std::log(i + 0.25 * std::log(i)));
+      Reductions[i] = int(21.9 * std::log(i));
 }
 
 
@@ -1181,8 +1181,8 @@ namespace {
               r--;
 
           // Increase reduction for cut nodes (~3 Elo)
-          if (cutNode)
-              r += 1 + !captureOrPromotion;
+          if (cutNode && move != ss->killers[0])
+              r += 2;
 
           if (!captureOrPromotion)
           {
