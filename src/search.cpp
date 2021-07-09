@@ -1201,7 +1201,7 @@ namespace {
                   r -= ss->statScore / 14721;
           }
 
-          Depth rr = newDepth / (2 + ss->ply / 3);
+          Depth rr = newDepth / (2 + ss->ply / 2.6);
 
           r -= rr;
 
