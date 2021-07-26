@@ -757,7 +757,7 @@ namespace {
     if (gameCycle)
         ss->staticEval = eval = eval * std::max(0, (100 - pos.rule50_count())) / 100;
 
-    if (!ss->ttHit)
+    if (!ss->ttHit && !excludedMove)
         tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
 
     // Use static evaluation difference to improve quiet move ordering
@@ -786,7 +786,7 @@ namespace {
            kingDanger = pos.king_danger();
 
        // Step 7. Futility pruning: child node (~30 Elo)
-       if (    depth < 9
+       if (    depth < 6
            && !kingDanger
            &&  abs(alpha) < VALUE_KNOWN_WIN
            &&  eval - futility_margin(depth, improving) >= beta
@@ -1092,7 +1092,7 @@ namespace {
           // search without the ttMove. So we assume this expected Cut-node is not singular,
           // that multiple moves fail high, and we can prune the whole subtree by returning
           // a soft bound.
-          else if (!PvNode)
+          else if (!PvNode && (ss-1)->moveCount == 1)
           {
             if (singularBeta >= beta)
                 return std::min(singularBeta, VALUE_TB_WIN_IN_MAX_PLY);
@@ -1165,13 +1165,6 @@ namespace {
           if (rootDepth > 10 && pos.king_danger())
               r--;
 
-          /*
-          // Increase reduction at root and non-PV nodes when the best move does not change frequently
-          if (   (rootNode || !PvNode)
-              && thisThread->bestMoveChanges <= 2)
-              r++;
-           */
-
           // Decrease reduction if opponent's move count is high (~1 Elo)
           if ((ss-1)->moveCount > 13)
               r--;
@@ -1201,7 +1194,7 @@ namespace {
                   r -= ss->statScore / 14721;
           }
 
-          Depth rr = newDepth / (2 + ss->ply / 2.6);
+          Depth rr = newDepth / (2 + ss->ply / 2.7);
 
           r -= rr;
 

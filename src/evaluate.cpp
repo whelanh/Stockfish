@@ -1077,32 +1077,11 @@ make_v:
 
 Value Eval::evaluate(const Position& pos) {
 
-  Value v;
-
-  // Preempt eval in some trivial non-mating material situations
-  // Note that minor vs minor is fine as eval is never called while in check and all help-mates can be escaped in a single unstoppable move
-  if (    !pos.count<PAWN>()
-      &&  !pos.count<ROOK>()
-      &&   pos.non_pawn_material() <= 2 * BishopValueMg
-      && (!pos.count<BISHOP>() || pos.non_pawn_material() < RookValueMg || abs(pos.non_pawn_material(WHITE) - pos.non_pawn_material(BLACK)) < PawnValueMg))
-      v = VALUE_DRAW;
-
-  else
-  {
-    const int maxNonPawnMaterial = 2 * QueenValueMg + 4 * (RookValueMg + BishopValueMg + KnightValueMg);
-    const int maxMaterialPercent = 45;
-    const int maxPawnPercent     = 44;
-
-    int taperedMaterialPercent = maxMaterialPercent * pos.non_pawn_material() / maxNonPawnMaterial;
-    int taperedPawnPercent = maxPawnPercent * pos.count<PAWN>() / 16;
-    int combinedPercent = 100 + taperedMaterialPercent + taperedPawnPercent;
-
-    v = Eval::useNNUE ? NNUE::evaluate(pos, true) * combinedPercent / 100 + (pos.is_chess960() ? fix_FRC(pos) : 0)
+  Value v = Eval::useNNUE ? NNUE::evaluate(pos, true) + (pos.is_chess960() ? fix_FRC(pos) : 0)
                             : Evaluation<NO_TRACE>(pos).value();
 
-    // Guarantee evaluation does not hit the tablebase range
-    v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
-  }
+  // Guarantee evaluation does not hit the tablebase range
+  v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 
   return v;
 }
