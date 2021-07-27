@@ -850,6 +850,7 @@ namespace {
        // much above beta, we can (almost) safely prune the previous move.
        if (    depth > 4
            &&  abs(beta) < VALUE_TB_WIN_IN_MAX_PLY
+
            // If we don't have a ttHit or our ttDepth is not greater our
            // reduced depth search, continue with the probcut.
            && (!ss->ttHit || ttDepth < depth - 3))
@@ -1092,7 +1093,7 @@ namespace {
           // search without the ttMove. So we assume this expected Cut-node is not singular,
           // that multiple moves fail high, and we can prune the whole subtree by returning
           // a soft bound.
-          else if (!PvNode && (ss-1)->moveCount == 1)
+          else if (!PvNode && !((ss->ply & 1) && (ss-1)->moveCount > 1))
           {
             if (singularBeta >= beta)
                 return std::min(singularBeta, VALUE_TB_WIN_IN_MAX_PLY);
@@ -1190,7 +1191,7 @@ namespace {
           // Decrease/increase reduction for moves with a good/bad history (~30 Elo)
           r -= ss->statScore / 14721;
 
-          Depth rr = newDepth / (2 + ss->ply / 2.7);
+          Depth rr = newDepth / (2 + ss->ply / 2.8);
 
           r -= rr;
 
