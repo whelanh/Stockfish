@@ -806,7 +806,7 @@ namespace {
            assert(eval - beta >= 0);
 
            // Null move dynamic reduction based on depth and value
-           Depth R = (1090 + 81 * depth) / 256 + std::min(int(eval - beta) / 205, 3);
+           Depth R = std::min(int(eval - beta) / 205, 3) + depth / 3 + 4;
 
            if (   depth < 11
                || ttValue >= beta
@@ -1196,8 +1196,8 @@ namespace {
 
           // In general we want to cap the LMR depth search at newDepth. But if
           // reductions are really negative and movecount is low, we allow this move
-          // to be searched deeper than the first move, unless ttMove was extended by 2.
-          Depth d = std::clamp(newDepth - r, 1, newDepth + (r < -1 && moveCount <= 5 && !doubleExtension));
+          // to be searched deeper than the first move in specific cases.
+          Depth d = std::clamp(newDepth - r, 1, newDepth + (r < -1 && (moveCount <= 5 || (depth > 6 && PvNode)) && !doubleExtension));
 
           value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, d, true);
 
