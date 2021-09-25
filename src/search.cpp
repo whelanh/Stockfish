@@ -61,9 +61,6 @@ namespace {
   // Different node types, used as a template parameter
   enum NodeType { NonPV, PV, Root };
 
-  constexpr uint64_t ttHitAverageWindow     = 4096;
-  constexpr uint64_t ttHitAverageResolution = 1024;
-
   // Futility margin
   Value futility_margin(Depth d, bool improving) {
     return Value(214 * (d - improving));
@@ -72,9 +69,9 @@ namespace {
   // Reductions lookup table, initialized at startup
   int Reductions[MAX_MOVES]; // [depth or moveNumber]
 
-  Depth reduction(bool i, Depth d, int mn) {
+  Depth reduction(bool i, Depth d, int mn, bool rangeReduction) {
     int r = Reductions[d] * Reductions[mn];
-    return (r + 534) / 1024 + (!i && r > 904);
+    return (r + 534) / 1024 + (!i && r > 904) + rangeReduction;
   }
 
   constexpr int futility_move_count(bool improving, Depth depth) {
@@ -86,48 +83,29 @@ namespace {
     return d > 14 ? 73 : 6 * d * d + 229 * d - 215;
   }
 
-  // Breadcrumbs are used to mark nodes as being searched by a given thread
-  struct Breadcrumb {
-    std::atomic<Thread*> thread;
-    std::atomic<Key> key;
-  };
-  std::array<Breadcrumb, 1024> breadcrumbs;
+  // Check if the current thread is in a search explosion
+  ExplosionState search_explosion(Thread* thisThread) {
 
-  // ThreadHolding structure keeps track of which thread left breadcrumbs at the given
-  // node for potential reductions. A free node will be marked upon entering the moves
-  // loop by the constructor, and unmarked upon leaving that loop by the destructor.
-  struct ThreadHolding {
-    explicit ThreadHolding(Thread* thisThread, Key posKey, int ply) {
-       location = ply < 8 ? &breadcrumbs[posKey & (breadcrumbs.size() - 1)] : nullptr;
-       otherThread = false;
-       owning = false;
-       if (location)
-       {
-          // See if another already marked this location, if not, mark it ourselves
-          Thread* tmp = (*location).thread.load(std::memory_order_relaxed);
-          if (tmp == nullptr)
-          {
-              (*location).thread.store(thisThread, std::memory_order_relaxed);
-              (*location).key.store(posKey, std::memory_order_relaxed);
-              owning = true;
-          }
-          else if (   tmp != thisThread
-                   && (*location).key.load(std::memory_order_relaxed) == posKey)
-              otherThread = true;
-       }
-    }
+    uint64_t nodesNow = thisThread->nodes;
+    bool explosive =    thisThread->doubleExtensionAverage[WHITE].is_greater(2, 100)
+                     || thisThread->doubleExtensionAverage[BLACK].is_greater(2, 100);
 
-    ~ThreadHolding() {
-       if (owning) // Free the marked location
-           (*location).thread.store(nullptr, std::memory_order_relaxed);
-    }
+    if (explosive)
+       thisThread->nodesLastExplosive = nodesNow;
+    else
+       thisThread->nodesLastNormal = nodesNow;
 
-    bool marked() { return otherThread; }
+    if (   explosive
+        && thisThread->state == EXPLOSION_NONE
+        && nodesNow - thisThread->nodesLastNormal > 6000000)
+        thisThread->state = MUST_CALM_DOWN;
 
-    private:
-    Breadcrumb* location;
-    bool otherThread, owning;
-  };
+    if (   thisThread->state == MUST_CALM_DOWN
+        && nodesNow - thisThread->nodesLastExplosive > 6000000)
+        thisThread->state = EXPLOSION_NONE;
+
+    return thisThread->state;
+  }
 
   template <NodeType nodeType>
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode);
@@ -318,8 +296,14 @@ void Thread::search() {
   size_t multiPV = size_t(Options["MultiPV"]);
 
   multiPV = std::min(multiPV, rootMoves.size());
-  ttHitAverage = ttHitAverageWindow * ttHitAverageResolution / 2;
 
+  ttHitAverage.set(50, 100);                  // initialize the running average at 50%
+  doubleExtensionAverage[WHITE].set(0, 100);  // initialize the running average at 0%
+  doubleExtensionAverage[BLACK].set(0, 100);  // initialize the running average at 0%
+
+  nodesLastExplosive = nodes;
+  nodesLastNormal    = nodes;
+  state = EXPLOSION_NONE;
   trend = SCORE_ZERO;
 
   int searchAgainCounter = 0;
@@ -513,6 +497,14 @@ namespace {
   template <NodeType nodeType>
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode) {
 
+    Thread* thisThread = pos.this_thread();
+
+    // Step 0. Limit search explosion
+    if (   ss->ply > 10
+        && search_explosion(thisThread) == MUST_CALM_DOWN
+        && depth > (ss-1)->depth)
+       depth = (ss-1)->depth;
+
     constexpr bool PvNode = nodeType != NonPV;
     constexpr bool rootNode = nodeType == Root;
     const Depth maxNextDepth = rootNode ? depth : depth + 1;
@@ -538,13 +530,12 @@ namespace {
     Value bestValue, value, ttValue, eval, probCutBeta;
     bool givesCheck, improving, didLMR, priorCapture, isMate, gameCycle;
     bool captureOrPromotion, doFullDepthSearch, moveCountPruning,
-         ttCapture, singularQuietLMR, kingDanger;
+         ttCapture, singularQuietLMR, noLMRExtension, kingDanger;
 
     Piece movedPiece;
     int moveCount, captureCount, quietCount, rootDepth;
 
     // Step 1. Initialize node
-    Thread* thisThread  = pos.this_thread();
     ss->inCheck         = pos.checkers();
     priorCapture        = pos.captured_piece();
     Color us            = pos.side_to_move();
@@ -585,9 +576,8 @@ namespace {
         && is_ok((ss-1)->currentMove))
         thisThread->lowPlyHistory[ss->ply - 1][from_to((ss-1)->currentMove)] << stat_bonus(depth - 5);
 
-    // thisThread->ttHitAverage can be used to approximate the running average of ttHit
-    thisThread->ttHitAverage =   (ttHitAverageWindow - 1) * thisThread->ttHitAverage / ttHitAverageWindow
-                                + ttHitAverageResolution * ss->ttHit;
+    // running average of ttHit
+    thisThread->ttHitAverage.update(ss->ttHit);
 
     if (!rootNode)
     {
@@ -631,7 +621,11 @@ namespace {
     (ss+1)->excludedMove = bestMove = MOVE_NONE;
     (ss+2)->killers[0]   = (ss+2)->killers[1] = MOVE_NONE;
     ss->doubleExtensions = (ss-1)->doubleExtensions;
+    ss->depth            = depth;
     Square prevSq        = to_sq((ss-1)->currentMove);
+
+    // Update the running average statistics for double extensions
+    thisThread->doubleExtensionAverage[us].update(ss->depth > (ss-1)->depth);
 
     // Initialize statScore to zero for the grandchildren of the current position.
     // So statScore is shared between all grandchildren and only the first grandchild
@@ -918,6 +912,7 @@ namespace {
     } // In check search starts here
 
     ttCapture = ttMove && pos.capture_or_promotion(ttMove);
+    int rangeReduction = 0;
 
     const PieceToHistory* contHist[] = { (ss-1)->continuationHistory, (ss-2)->continuationHistory,
                                           nullptr                   , (ss-4)->continuationHistory,
@@ -934,8 +929,7 @@ namespace {
                                       ss->ply);
 
     value = bestValue;
-    singularQuietLMR = moveCountPruning = false;
-    bool doubleExtension = false;
+    singularQuietLMR = moveCountPruning = noLMRExtension = false;
 
     // Indicate PvNodes that will probably fail low if the node was searched
     // at a depth equal or greater than the current depth, and the result of this search was a fail low.
@@ -1013,7 +1007,7 @@ namespace {
           moveCountPruning = moveCount >= futility_move_count(improving, depth);
 
           // Reduced depth of the next LMR search
-          int lmrDepth = std::max(newDepth - reduction(improving, depth, moveCount), 0);
+          int lmrDepth = std::max(newDepth - reduction(improving, depth, moveCount, rangeReduction > 2), 0);
 
           if (   captureOrPromotion
               || givesCheck)
@@ -1040,7 +1034,7 @@ namespace {
               // Futility pruning: parent node (~5 Elo)
               if (   !ss->inCheck
                   && lmrDepth < 3
-                  && ss->staticEval + 172 + 157 * lmrDepth <= alpha)
+                  && ss->staticEval + 172 + 145 * lmrDepth <= alpha)
                   continue;
 
               // Prune moves with negative SEE (~20 Elo)
@@ -1068,7 +1062,7 @@ namespace {
           && (ttBound & BOUND_LOWER)
           &&  ttDepth >= depth - 3)
       {
-          Value singularBeta = std::max(ttValue - 2 * depth, VALUE_TB_LOSS_IN_MAX_PLY);
+          Value singularBeta = std::max(ttValue - 3 * depth, VALUE_TB_LOSS_IN_MAX_PLY);
           Depth singularDepth = (depth - 1) / 2;
 
           ss->excludedMove = move;
@@ -1080,13 +1074,13 @@ namespace {
               extension = 1;
               singularQuietLMR = !ttCapture;
 
-              // Avoid search explosion by limiting the number of double extensions to at most 3
+              // Avoid search explosion by limiting the number of double extensions
               if (  !PvNode
-                  && value < singularBeta - 93
-                  && ss->doubleExtensions < 3)
+                  && value < singularBeta - 75
+                  && ss->doubleExtensions <= 6)
               {
                   extension = 2;
-                  doubleExtension = true;
+                  noLMRExtension = true;
               }
           }
 
@@ -1159,13 +1153,13 @@ namespace {
           && (!PvNode || ss->ply > 1 || thisThread->id() % 4 != 3)
           && (!captureOrPromotion || (cutNode && (ss-1)->moveCount >1)))
       {
-          Depth r = reduction(improving, depth, moveCount);
+          Depth r = reduction(improving, depth, moveCount, rangeReduction > 2);
 
           if (PvNode || (ss-1)->moveCount == 1)
               r--;
 
-          // Decrease reduction if the ttHit running average is large
-          if (thisThread->ttHitAverage > 537 * ttHitAverageResolution * ttHitAverageWindow / 1024)
+          // Decrease reduction if the ttHit running average is large (~0 Elo)
+          if (thisThread->ttHitAverage.is_greater(537, 1024))
               r--;
 
           // Decrease reduction if position is or has been on the PV
@@ -1211,10 +1205,22 @@ namespace {
 
           // In general we want to cap the LMR depth search at newDepth. But if
           // reductions are really negative and movecount is low, we allow this move
-          // to be searched deeper than the first move in specific cases.
-          Depth d = std::clamp(newDepth - r, 1, newDepth + (r < -1 && (moveCount <= 5 || (depth > 6 && PvNode)) && !doubleExtension));
+          // to be searched deeper than the first move in specific cases (note that
+          // this may lead to hidden double extensions if newDepth got it own extension
+          // before).
+          int deeper =   r >= -1               ? 0
+                       : noLMRExtension        ? 0
+                       : moveCount <= 5        ? 1
+                       : (depth > 6 && PvNode) ? 1
+                       :                         0;
+
+          Depth d = std::clamp(newDepth - r, 1, newDepth + deeper);
 
           value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, d, true);
+
+          // Range reductions (~3 Elo)
+          if (ss->staticEval - value < 30 && depth > 7)
+              rangeReduction++;
 
           // If the son is reduced and fails high it will be re-searched at full depth
           doFullDepthSearch = value > alpha && d < newDepth;
