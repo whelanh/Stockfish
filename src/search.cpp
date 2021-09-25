@@ -798,7 +798,7 @@ namespace {
            && (ss-1)->statScore < 23767
            &&  eval >= beta
            &&  eval >= ss->staticEval
-           &&  ss->staticEval >= beta - 20 * depth - 22 * improving + 168 * ss->ttPv + 159
+           &&  ss->staticEval >= beta - 20 * depth - 22 * improving + 168 * ss->ttPv + 177
            &&  pos.non_pawn_material(us)
            && !kingDanger
            && !(rootDepth > 10 && MoveList<LEGAL>(pos).size() < 6))
@@ -904,11 +904,16 @@ namespace {
        }
     } // End early Pruning
 
-    // Step 10. If the position is not in TT, decrease depth by 2
+    // Step 10. If the position is not in TT, decrease depth by 2 or 1 depending on node type
     if (   PvNode
         && depth >= 6
         && !ttMove)
         depth -= 2;
+
+    if (   cutNode
+        && depth >= 9
+        && !ttMove)
+        depth--;
 
     } // In check search starts here
 
@@ -1033,9 +1038,9 @@ namespace {
                   continue;
 
               // Futility pruning: parent node (~5 Elo)
-              if (   lmrDepth < 3
-                  && !ss->inCheck
-                  && ss->staticEval + 174 + 157 * lmrDepth <= alpha)
+              if (   !ss->inCheck
+                  && lmrDepth < 3
+                  && ss->staticEval + 172 + 157 * lmrDepth <= alpha)
                   continue;
 
               // Prune moves with negative SEE (~20 Elo)
@@ -1109,12 +1114,21 @@ namespace {
           }
       }
 
-      // Check extension (~2 Elo)
-      if (  !extension
-          && givesCheck
-          && depth > 6
-          && abs(ss->staticEval) > Value(100))
+      // Secondary extensions
+      if (!extension)
+      {
+        // Capture extensions for PvNodes and cutNodes
+        if (   (PvNode || cutNode)
+            && captureOrPromotion
+            && moveCount != 1)
+            extension = 1;
+
+        // Check extension
+        else if (   givesCheck
+                 && depth > 6
+                 && abs(ss->staticEval) > Value(100))
           extension = 1;
+       }
 
       // Add extension to new depth
       newDepth += extension;
@@ -1341,7 +1355,7 @@ namespace {
     // Bonus for prior countermove that caused the fail low
     else if (   (depth >= 3 || PvNode)
              && !priorCapture)
-        update_continuation_histories(ss-1, pos.piece_on(prevSq), prevSq, stat_bonus(depth));
+        update_continuation_histories(ss-1, pos.piece_on(prevSq), prevSq, stat_bonus(depth) * (1 + (PvNode || cutNode)));
 
     // If no good move is found and the previous position was ttPv, then the previous
     // opponent move is probably good and the new position is added to the search tree.
