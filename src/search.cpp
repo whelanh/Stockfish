@@ -80,7 +80,7 @@ namespace {
 
   // History and stats update bonus, based on depth
   int stat_bonus(Depth d) {
-    return d > 14 ? 73 : 6 * d * d + 229 * d - 215;
+    return std::min((6 * d + 229) * d - 215 , 2000);
   }
 
   // Check if the current thread is in a search explosion
@@ -157,7 +157,7 @@ namespace {
 void Search::init() {
 
   for (int i = 1; i < MAX_MOVES; ++i)
-      Reductions[i] = int(21.9 * std::log(i));
+      Reductions[i] = int((21.9 + std::log(Threads.size()) / 2) * std::log(i));
 }
 
 
@@ -533,13 +533,13 @@ namespace {
          ttCapture, singularQuietLMR, noLMRExtension, kingDanger;
 
     Piece movedPiece;
-    int moveCount, captureCount, quietCount, rootDepth;
+    int moveCount, captureCount, quietCount, bestMoveCount, rootDepth;
 
     // Step 1. Initialize node
     ss->inCheck         = pos.checkers();
     priorCapture        = pos.captured_piece();
     Color us            = pos.side_to_move();
-    moveCount           = captureCount = quietCount = ss->moveCount = 0;
+    moveCount           = bestMoveCount = captureCount = quietCount = ss->moveCount = 0;
     bestValue           = -VALUE_INFINITE;
     gameCycle           = kingDanger = false;
     rootDepth           = thisThread->rootDepth;
@@ -739,7 +739,6 @@ namespace {
     else
     {
         // In case of null move search use previous static eval with a different sign
-        // and addition of two tempos
         if ((ss-1)->currentMove != MOVE_NULL)
             ss->staticEval = eval = evaluate(pos);
         else
@@ -1163,7 +1162,8 @@ namespace {
       {
           Depth r = reduction(improving, depth, moveCount, rangeReduction > 2);
 
-          if (PvNode || (ss-1)->moveCount == 1)
+          // Decrease reduction if on the PV (~2 Elo)
+          if ((ss-1)->moveCount == 1 || (PvNode && bestMoveCount <= 3))
               r--;
 
           // Decrease reduction if the ttHit running average is large (~0 Elo)
@@ -1296,9 +1296,11 @@ namespace {
               for (Move* m = (ss+1)->pv; *m != MOVE_NONE; ++m)
                   rm.pv.push_back(*m);
 
-              // We record how often the best move has been changed in each
-              // iteration. This information is used for time management and LMR
-              if (moveCount > 1)
+              // We record how often the best move has been changed in each iteration.
+              // This information is used for time management and LMR. In MultiPV mode,
+              // we must take care to only do this for the first PV line.
+              if (   moveCount > 1
+                  && !thisThread->pvIdx)
                   ++thisThread->bestMoveChanges;
           }
           else
@@ -1320,7 +1322,10 @@ namespace {
                   update_pv(ss->pv, move, (ss+1)->pv);
 
               if (PvNode && value < beta) // Update alpha! Always alpha < beta
+              {
                   alpha = value;
+                  bestMoveCount++;
+              }
               else
               {
                   assert(value >= beta); // Fail high
@@ -1499,7 +1504,6 @@ namespace {
         }
         else
             // In case of null move search use previous static eval with a different sign
-            // and addition of two tempos
             ss->staticEval = bestValue =
             (ss-1)->currentMove != MOVE_NULL ? evaluate(pos)
                                              : -(ss-1)->staticEval;
@@ -1716,8 +1720,8 @@ namespace {
     PieceType captured = type_of(pos.piece_on(to_sq(bestMove)));
 
     bonus1 = stat_bonus(depth + 1);
-    bonus2 = bestValue > beta + PawnValueMg ? bonus1                                 // larger bonus
-                                            : std::min(bonus1, stat_bonus(depth));   // smaller bonus
+    bonus2 = bestValue > beta + PawnValueMg ? bonus1               // larger bonus
+                                            : stat_bonus(depth);   // smaller bonus
 
     if (!pos.capture_or_promotion(bestMove))
     {
