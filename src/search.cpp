@@ -1095,7 +1095,8 @@ namespace {
                 return std::min(singularBeta, VALUE_TB_WIN_IN_MAX_PLY);
 
             // If the eval of ttMove is greater than beta we try also if there is another
-            // move that pushes it over beta, if so also produce a cutoff.
+            // move that pushes it over beta, if so the position also has probably multiple
+            // moves giving fail highs. We will then reduce the ttMove (negative extension).
             else if (ttValue >= beta)
             {
                 ss->excludedMove = move;
@@ -1103,25 +1104,32 @@ namespace {
                 ss->excludedMove = MOVE_NONE;
 
                 if (value >= beta)
-                    return beta;
+                    extension = -2;
             }
           }
       }
 
       // Secondary extensions
-      if (!extension)
+      if (extension < 1)
       {
         // Capture extensions for PvNodes and cutNodes
         if (   (PvNode || cutNode)
             && captureOrPromotion
             && moveCount != 1)
-            extension = 1;
+            ++extension;
 
         // Check extension
         else if (   givesCheck
                  && depth > 6
                  && abs(ss->staticEval) > Value(100))
-          extension = 1;
+          ++extension;
+
+        // Quiet ttMove extensions
+        else if (   PvNode
+               && move == ttMove
+               && move == ss->killers[0]
+               && (*contHist[0])[movedPiece][to_sq(move)] >= 10000)
+          ++extension;
        }
 
       // Add extension to new depth
@@ -1203,11 +1211,10 @@ namespace {
             r -= rr;
           }
 
-          // In general we want to cap the LMR depth search at newDepth. But if
-          // reductions are really negative and movecount is low, we allow this move
-          // to be searched deeper than the first move in specific cases (note that
-          // this may lead to hidden double extensions if newDepth got it own extension
-          // before).
+          // In general we want to cap the LMR depth search at newDepth. But if reductions
+          // are really negative and movecount is low, we allow this move to be searched
+          // deeper than the first move (this may lead to hidden double extensions if
+          // newDepth got its own extension before).
           int deeper =   r >= -1               ? 0
                        : noLMRExtension        ? 0
                        : moveCount <= 5        ? 1
