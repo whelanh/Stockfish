@@ -15,8 +15,8 @@ A few examples of what Crystal can do:
     1) (Ba4+) 3B4/1r2p3/r2p1p2/bkp1P1p1/1p1P1PPp/p1P4P/PP1K4/3B4 w - -
     2) (Draw) 4K1bn/5p2/5PpB/6P1/3k4/8/8/7q w - -
     3) (f6)   rk6/pP1p2p1/B7/3K1P2/8/8/7b/8 w - -
-    4) (Nd7)  1N1K1b1r/P3pPp1/4k1P1/rp1pB1RN/q4RP1/8/p2pB1p1/1b6 w - -
-    5) (Bf7)  4B2k/1p5p/bp5P/1p4p1/qp4P1/pp6/1r4P1/B1K5 w - -
+    4) (Rd3)  8/5K2/3p3p/3p3P/pp1P4/rkb1R3/p1p3P1/n1B2B2 w - -
+    5) (Nd7)  1N1K1b1r/P3pPp1/4k1P1/rp1pB1RN/q4RP1/8/p2pB1p1/1b6 w - -
     6) (b4)   3K4/1p1B4/bB1k4/rpR1p3/2ppppp1/8/RPPPPP2/r1n5 w - -
     7) (Draw) k7/P7/8/P7/2KB4/4B3/8/8 b - -
 
