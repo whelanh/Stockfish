@@ -903,11 +903,6 @@ namespace {
         && !ttMove)
         depth -= 2;
 
-    if (   cutNode
-        && depth >= 9
-        && !ttMove)
-        depth--;
-
     } // In check search starts here
 
     ttCapture = ttMove && pos.capture_or_promotion(ttMove);
@@ -1033,7 +1028,11 @@ namespace {
               // Futility pruning: parent node (~5 Elo)
               if (   !ss->inCheck
                   && lmrDepth < 3
-                  && ss->staticEval + 172 + 145 * lmrDepth <= alpha)
+                  && ss->staticEval + 172 + 145 * lmrDepth <= alpha
+                  &&  (*contHist[0])[movedPiece][to_sq(move)]
+                    + (*contHist[1])[movedPiece][to_sq(move)]
+                    + (*contHist[3])[movedPiece][to_sq(move)]
+                    + (*contHist[5])[movedPiece][to_sq(move)] / 3 < 28255)
                   continue;
 
               // Prune moves with negative SEE (~20 Elo)
@@ -1097,14 +1096,7 @@ namespace {
             // move that pushes it over beta, if so the position also has probably multiple
             // moves giving fail highs. We will then reduce the ttMove (negative extension).
             else if (ttValue >= beta)
-            {
-                ss->excludedMove = move;
-                value = search<NonPV>(pos, ss, beta - 1, beta, (depth + 3) / 2, cutNode);
-                ss->excludedMove = MOVE_NONE;
-
-                if (value >= beta)
-                    extension = -2;
-            }
+                     extension = -2;
           }
       }
 
@@ -1115,20 +1107,20 @@ namespace {
         if (   (PvNode || cutNode)
             && captureOrPromotion
             && moveCount != 1)
-            ++extension;
+            extension = 1;
 
         // Check extension
         else if (   givesCheck
                  && depth > 6
                  && abs(ss->staticEval) > Value(100))
-          ++extension;
+                 extension = 1;
 
         // Quiet ttMove extensions
         else if (   PvNode
-               && move == ttMove
-               && move == ss->killers[0]
-               && (*contHist[0])[movedPiece][to_sq(move)] >= 10000)
-          ++extension;
+                 && move == ttMove
+                 && move == ss->killers[0]
+                 && (*contHist[0])[movedPiece][to_sq(move)] >= 10000)
+                 extension = 1;
        }
 
       // Add extension to new depth
