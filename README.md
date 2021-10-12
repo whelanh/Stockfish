@@ -18,10 +18,10 @@ A few examples of what Crystal can do:
     4) (Rd3)  8/5K2/3p3p/3p3P/pp1P4/rkb1R3/p1p3P1/n1B2B2 w - -
     5) (Nd7)  1N1K1b1r/P3pPp1/4k1P1/rp1pB1RN/q4RP1/8/p2pB1p1/1b6 w - -
     6) (b4)   3K4/1p1B4/bB1k4/rpR1p3/2ppppp1/8/RPPPPP2/r1n5 w - -
-   *7) (Draw) k7/P7/8/P7/2KB4/2B1B3/1B1B1B2/B1B1B1B1 b - -
+   ^7) (Draw) k7/P7/8/P7/2KB4/2B1B3/1B1B1B2/B1B1B1B1 b - -
     8) (Nc8)  8/1p1pNpbk/1q1P4/pP2p2K/P3N3/4P1P1/3P4/8 w - -
 
-* Disable NNUE for Crystal
+^ Disable NNUE for Crystal
 
 [Stockfish](https://stockfishchess.org) is a free, powerful UCI chess engine
 derived from Glaurung 2.1. Stockfish is not a complete chess program and requires a
