@@ -637,7 +637,7 @@ namespace {
         && ss->ttHit
         && !gameCycle
         && pos.rule50_count() < 88
-        && ttDepth >= depth
+        && ttDepth > depth - (thisThread->id() % 2 == 1)
         && ttValue != VALUE_NONE // Possible in case of TT access race
         && (ttValue != VALUE_DRAW || VALUE_DRAW >= beta)
         && (ttValue >= beta ? (ttBound & BOUND_LOWER)
@@ -735,13 +735,7 @@ namespace {
             eval = ttValue;
     }
     else
-    {
-        // In case of null move search use previous static eval with a different sign
-        if ((ss-1)->currentMove != MOVE_NULL)
-            ss->staticEval = eval = evaluate(pos);
-        else
-            ss->staticEval = eval = -(ss-1)->staticEval;
-    }
+        ss->staticEval = eval = evaluate(pos);
 
     ss->staticEval = eval = eval * std::max(0, (100 - pos.rule50_count())) / 100;
 
@@ -791,7 +785,7 @@ namespace {
            && (ss-1)->statScore < 23767
            &&  eval >= beta
            &&  eval >= ss->staticEval
-           &&  ss->staticEval >= beta - 20 * depth - improvement / 15 + 168 * ss->ttPv + 177
+           &&  ss->staticEval >= beta - 20 * depth - improvement / 15 + 204
            &&  pos.non_pawn_material(us)
            && !kingDanger
            && !(rootDepth > 10 && MoveList<LEGAL>(pos).size() < 6))
@@ -1071,7 +1065,7 @@ namespace {
               // Avoid search explosion by limiting the number of double extensions
               if (  !PvNode
                   && value < singularBeta - 75
-                  && ss->doubleExtensions <= 6)
+                  && ss->doubleExtensions < 3)
                   extension = 2;
           }
 
@@ -1137,10 +1131,8 @@ namespace {
       // cases where we extend a son if it has good chances to be "interesting".
       if (    depth >= 3
           && !gameCycle
-          && !givesCheck
           &&  moveCount > 1 + 2 * rootNode
           &&  thisThread->selDepth > depth
-          && (!PvNode || ss->ply > 1 || thisThread->id() % 4 != 3)
           && (!captureOrPromotion || (cutNode && (ss-1)->moveCount >1)))
       {
           Depth r = reduction(improving, depth, moveCount, rangeReduction > 2);
@@ -1193,11 +1185,10 @@ namespace {
           // In general we want to cap the LMR depth search at newDepth. But if reductions
           // are really negative and movecount is low, we allow this move to be searched
           // deeper than the first move (this may lead to hidden double extensions).
-          int deeper =   r >= -1                   ? 0
-                       : moveCount <= 3 && r <= -3 ? 2
-                       : moveCount <= 5            ? 1
-                       : PvNode && depth > 6       ? 1
-                       :                             0;
+          int deeper =   r >= -1             ? 0
+                       : moveCount <= 5      ? 1
+                       : PvNode && depth > 6 ? 1
+                       :                       0;
 
           Depth d = std::clamp(newDepth - r, 1, newDepth + deeper);
 
