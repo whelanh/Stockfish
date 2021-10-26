@@ -1131,8 +1131,9 @@ namespace {
       // cases where we extend a son if it has good chances to be "interesting".
       if (    depth >= 3
           && !gameCycle
-          &&  moveCount > 1 + 2 * rootNode
+          &&  moveCount > 1
           &&  thisThread->selDepth > depth
+          && (!PvNode || ss->ply > 1)
           && (!captureOrPromotion || (cutNode && (ss-1)->moveCount >1)))
       {
           Depth r = reduction(improving, depth, moveCount, rangeReduction > 2);
