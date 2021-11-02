@@ -1449,6 +1449,7 @@ moves_loop: // When in check, search starts here
         && ss->ttHit
         && tte->depth() >= ttDepth
         && ttValue != VALUE_NONE // Only in case of TT access race
+        && (ttValue < beta || ttMove != MOVE_NONE)
         && (ttValue >= beta ? (tte->bound() & BOUND_LOWER)
                             : (tte->bound() & BOUND_UPPER)))
         return ttValue;
