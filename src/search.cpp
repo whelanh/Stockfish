@@ -345,7 +345,7 @@ void Thread::search() {
           if (rootDepth >= 4)
           {
               Value prev = rootMoves[pvIdx].previousScore;
-              delta = Value(17);
+              delta = Value(17) + int(prev) * prev / 16384;
               alpha = std::max(prev - delta,-VALUE_INFINITE);
               beta  = std::min(prev + delta, VALUE_INFINITE);
 
@@ -1186,10 +1186,11 @@ namespace {
           // In general we want to cap the LMR depth search at newDepth. But if reductions
           // are really negative and movecount is low, we allow this move to be searched
           // deeper than the first move (this may lead to hidden double extensions).
-          int deeper =   r >= -1             ? 0
-                       : moveCount <= 5      ? 1
-                       : PvNode && depth > 6 ? 1
-                       :                       0;
+          int deeper =   r >= -1                   ? 0
+                       : moveCount <= 5            ? 1
+                       : PvNode && depth > 6       ? 1
+                       : cutNode && moveCount <= 7 ? 1
+                       :                             0;
 
           Depth d = std::clamp(newDepth - r, 1, newDepth + deeper);
 
