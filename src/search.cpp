@@ -779,7 +779,8 @@ namespace {
 
         // Can ttValue be used as a better position evaluation?
         if (    ttValue != VALUE_NONE
-            && (tte->bound() & (ttValue > eval ? BOUND_LOWER : BOUND_UPPER)))
+            && (tte->bound() & (ttValue > eval ? BOUND_LOWER : BOUND_UPPER))
+            && (ttValue <= eval || ttMove != MOVE_NONE))
             eval = ttValue;
     }
     else
@@ -1469,7 +1470,8 @@ moves_loop: // When in check, search starts here
 
             // Can ttValue be used as a better position evaluation?
             if (    ttValue != VALUE_NONE
-                && (tte->bound() & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
+                && (tte->bound() & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER))
+                && (ttValue <= bestValue || ttMove != MOVE_NONE))
                 bestValue = ttValue;
         }
         else
