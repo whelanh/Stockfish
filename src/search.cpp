@@ -731,6 +731,7 @@ namespace {
 
         // Can ttValue be used as a better position evaluation?
         if (    ttValue != VALUE_NONE
+            && (ttMove != MOVE_NONE || ttValue <= eval)
             && (ttBound & (ttValue > eval ? BOUND_LOWER : BOUND_UPPER)))
             eval = ttValue;
     }
@@ -1470,6 +1471,7 @@ namespace {
 
             // Can ttValue be used as a better position evaluation?
             if (    ttValue != VALUE_NONE
+                && (ttMove != MOVE_NONE || ttValue <= bestValue)
                 && (ttBound & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
                 bestValue = ttValue;
         }
