@@ -985,6 +985,8 @@ moves_loop: // When in check, search starts here
                          && (tte->bound() & BOUND_UPPER)
                          && tte->depth() >= depth;
 
+    bool singular = false;
+
     // Step 12. Loop through all pseudo-legal moves until no moves remain
     // or a beta cutoff occurs.
     while ((move = mp.next_move(moveCountPruning)) != MOVE_NONE)
@@ -1095,6 +1097,7 @@ moves_loop: // When in check, search starts here
           {
               extension = 1;
               singularQuietLMR = !ttCapture;
+              singular = true;
 
               // Avoid search explosion by limiting the number of double extensions
               if (   !PvNode
@@ -1191,6 +1194,9 @@ moves_loop: // When in check, search starts here
           // Decrease reduction if ttMove has been singularly extended (~1 Elo)
           if (singularQuietLMR)
               r--;
+
+          else if (singular)
+              r++;
 
           // Increase reduction for cut nodes (~3 Elo)
           if (cutNode && move != ss->killers[0])
