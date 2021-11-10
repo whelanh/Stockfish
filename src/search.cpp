@@ -260,7 +260,7 @@ void Thread::search() {
   // The latter is needed for statScore and killer initialization.
   Stack stack[MAX_PLY+10], *ss = stack+7;
   Move  pv[MAX_PLY+1];
-  Value bestValue, alpha, beta, delta;
+  Value alpha, beta, delta;
   Move  lastBestMove = MOVE_NONE;
   Depth lastBestMoveDepth = 0;
   MainThread* mainThread = (this == Threads.main() ? Threads.main() : nullptr);
@@ -344,7 +344,7 @@ void Thread::search() {
           // Reset aspiration window starting size
           if (rootDepth >= 4)
           {
-              Value prev = rootMoves[pvIdx].previousScore;
+              Value prev = rootMoves[pvIdx].averageScore;
               delta = Value(17) + int(prev) * prev / 16384;
               alpha = std::max(prev - delta,-VALUE_INFINITE);
               beta  = std::min(prev + delta, VALUE_INFINITE);
@@ -611,6 +611,8 @@ namespace {
             return mate_in(ss->ply+1);
 
     }
+    else
+        thisThread->rootDelta = beta - alpha;
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
@@ -768,7 +770,7 @@ namespace {
         && !excludedMove
         && !gameCycle
         && !thisThread->nmpGuard
-        &&  abs(eval) < 2 * VALUE_KNOWN_WIN)
+        &&  abs(eval) < 14000)
     {
        if (rootDepth > 10)
            kingDanger = pos.king_danger();
@@ -777,8 +779,7 @@ namespace {
        if (    depth < 6
            && !kingDanger
            &&  abs(alpha) < VALUE_KNOWN_WIN
-           &&  eval - futility_margin(depth, improving) >= beta
-           &&  eval < VALUE_KNOWN_WIN) // Do not return unproven wins
+           &&  eval - futility_margin(depth, improving) >= beta)
            return eval;
 
        // Step 8. Null move search with verification search (~40 Elo)
@@ -1143,6 +1144,10 @@ namespace {
           if ((ss-1)->moveCount == 1 || (PvNode && bestMoveCount <= 3))
               r--;
 
+          // Increases reduction for PvNodes that have small window
+          if (PvNode && beta - alpha < thisThread->rootDelta / 4)
+              r++;
+
           // Decrease reduction if position is or has been on the PV
           // and node is not likely to fail low. (~3 Elo)
           if (   ss->ttPv
@@ -1255,6 +1260,11 @@ namespace {
       {
           RootMove& rm = *std::find(thisThread->rootMoves.begin(),
                                     thisThread->rootMoves.end(), move);
+
+          if (abs(value) < VALUE_TB_WIN - 6 * PawnValueEg)
+              rm.averageScore = rm.averageScore != -VALUE_INFINITE ? (2 * value + rm.averageScore) / 3 : value;
+          else
+              rm.averageScore = value;
 
           // PV move or new best move?
           if (moveCount == 1 || value > alpha)
@@ -1391,13 +1401,12 @@ namespace {
     Move ttMove, move, bestMove;
     Depth ttDepth;
     Bound ttBound;
-    Value bestValue, value, ttValue, futilityValue, futilityBase, oldAlpha;
+    Value bestValue, value, ttValue, futilityValue, futilityBase;
     bool pvHit, givesCheck, captureOrPromotion, gameCycle;
     int moveCount;
 
     if (PvNode)
     {
-        oldAlpha = alpha; // To flag BOUND_EXACT when eval above alpha and no available moves
         (ss+1)->pv = pv;
         ss->pv[0] = MOVE_NONE;
     }
@@ -1611,8 +1620,7 @@ namespace {
 
     // Save gathered info in transposition table
     tte->save(posKey, value_to_tt(bestValue, ss->ply), pvHit,
-              bestValue >= beta ? BOUND_LOWER :
-              PvNode && bestValue > oldAlpha  ? BOUND_EXACT : BOUND_UPPER,
+              bestValue >= beta ? BOUND_LOWER : BOUND_UPPER,
               ttDepth, bestMove, ss->staticEval);
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
@@ -1759,10 +1767,6 @@ namespace {
     Thread* thisThread = pos.this_thread();
     thisThread->mainHistory[us][from_to(move)] << bonus;
     update_continuation_histories(ss, pos.moved_piece(move), to_sq(move), bonus);
-
-    // Penalty for reversed move in case of moved piece not being a pawn
-    if (type_of(pos.moved_piece(move)) != PAWN)
-        thisThread->mainHistory[us][from_to(reverse_move(move))] << -bonus;
 
     // Update countermove history
     if (is_ok((ss-1)->currentMove))
