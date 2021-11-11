@@ -1031,6 +1031,10 @@ moves_loop: // When in check, search starts here
           // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold
           moveCountPruning = moveCount >= futility_move_count(improving, depth);
 
+          // SEE based pruning
+          if (!pos.see_ge(move, Value(64 * (std::log(moveCount - 1))) - PawnValueMg - 256 * (depth - 1))) // (~25 Elo)
+              continue;
+
           // Reduced depth of the next LMR search
           int lmrDepth = std::max(newDepth - reduction(improving, depth, moveCount, rangeReduction > 2), 0);
 
@@ -1041,10 +1045,6 @@ moves_loop: // When in check, search starts here
               if (   !givesCheck
                   && lmrDepth < 1
                   && captureHistory[movedPiece][to_sq(move)][type_of(pos.piece_on(to_sq(move)))] < 0)
-                  continue;
-
-              // SEE based pruning
-              if (!pos.see_ge(move, Value(-218) * depth)) // (~25 Elo)
                   continue;
           }
           else
@@ -1060,10 +1060,6 @@ moves_loop: // When in check, search starts here
               if (   !ss->inCheck
                   && lmrDepth < 8
                   && ss->staticEval + 172 + 145 * lmrDepth <= alpha)
-                  continue;
-
-              // Prune moves with negative SEE (~20 Elo)
-              if (!pos.see_ge(move, Value(-21 * lmrDepth * lmrDepth - 21 * lmrDepth)))
                   continue;
           }
       }
