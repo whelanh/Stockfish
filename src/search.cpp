@@ -980,7 +980,6 @@ moves_loop: // When in check, search starts here
 
     // Indicate potentially good Nodes.
     bool goodNode =    ttMove
-                    && ttValue >= alpha
                     && (tte->bound() & BOUND_LOWER);
 
     // Step 12. Loop through all pseudo-legal moves until no moves remain
