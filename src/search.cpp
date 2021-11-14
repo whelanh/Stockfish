@@ -981,7 +981,6 @@ moves_loop: // When in check, search starts here
     // Indicate PvNodes that are good at a depth <= current depth.
     bool goodPvNode =       PvNode
                          && ttMove
-                         && ttValue > alpha
                          && (tte->bound() & BOUND_LOWER)
                          && tte->depth() >= depth;
 
