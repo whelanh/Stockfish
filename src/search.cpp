@@ -981,6 +981,7 @@ moves_loop: // When in check, search starts here
     // Indicate PvNodes that are good at a depth <= current depth.
     bool goodPvNode =       PvNode
                          && ttMove
+                         && ttValue > alpha
                          && (tte->bound() & BOUND_LOWER)
                          && tte->depth() >= depth;
 
@@ -1175,7 +1176,7 @@ moves_loop: // When in check, search starts here
           // Decrease reduction if position is or has been on the PV
           // and node is not likely to fail low. (~3 Elo)
           if (   ss->ttPv
-              && goodPvNode)
+              && (!PvNode || goodPvNode))
               r -= 2;
 
           // Increase reduction at root and non-PV nodes when the best move does not change frequently
