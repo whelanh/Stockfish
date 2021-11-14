@@ -529,7 +529,7 @@ namespace {
     Value bestValue, value, ttValue, eval, probCutBeta;
     bool givesCheck, improving, didLMR, priorCapture, isMate, gameCycle;
     bool captureOrPromotion, doFullDepthSearch, moveCountPruning,
-         ttCapture, singularQuietLMR, kingDanger;
+         ttCapture, kingDanger;
 
     Piece movedPiece;
     int moveCount, captureCount, quietCount, bestMoveCount, improvement, rootDepth;
@@ -893,7 +893,8 @@ namespace {
     // Step 10. If the position is not in TT, decrease depth by 2 or 1 depending on node type
     if (   PvNode
         && depth >= 6
-        && !ttMove)
+        && !ttMove
+        && !ss->ttPv)
         depth -= 2;
 
     } // In check search starts here
@@ -915,14 +916,7 @@ namespace {
                                       ss->ply);
 
     value = bestValue;
-    singularQuietLMR = moveCountPruning = false;
-
-    // Indicate PvNodes that will probably fail low if the node was searched
-    // at a depth equal or greater than the current depth, and the result of this search was a fail low.
-    bool likelyFailLow =    PvNode
-                         && ttMove
-                         && (tte->bound() & BOUND_UPPER)
-                         && tte->depth() >= depth;
+    moveCountPruning = false;
 
     // Step 12. Loop through all pseudo-legal moves until no moves remain
     // or a beta cutoff occurs.
@@ -1062,7 +1056,6 @@ namespace {
           if (value < singularBeta)
           {
               extension = 1;
-              singularQuietLMR = !ttCapture;
 
               // Avoid search explosion by limiting the number of double extensions
               if (  !PvNode
@@ -1144,34 +1137,12 @@ namespace {
           if ((ss-1)->moveCount == 1 || (PvNode && bestMoveCount <= 3))
               r--;
 
-          // Increases reduction for PvNodes that have small window
-          if (PvNode && beta - alpha < thisThread->rootDelta / 4)
-              r++;
-
-          // Decrease reduction if position is or has been on the PV
-          // and node is not likely to fail low. (~3 Elo)
-          if (   ss->ttPv
-              && !likelyFailLow)
-              r -= 2;
-
           if (rootDepth > 10 && pos.king_danger())
-              r--;
-
-          // Decrease reduction if opponent's move count is high (~1 Elo)
-          if ((ss-1)->moveCount > 13)
-              r--;
-
-          // Decrease reduction if ttMove has been singularly extended (~1 Elo)
-          if (singularQuietLMR)
               r--;
 
           // Increase reduction for cut nodes (~3 Elo)
           if (cutNode && move != ss->killers[0])
               r += 2;
-
-          // Increase reduction if ttMove is a capture (~3 Elo)
-          if (ttCapture)
-              r++;
 
           ss->statScore =  thisThread->mainHistory[us][from_to(move)]
                          + (*contHist[0])[movedPiece][to_sq(move)]
