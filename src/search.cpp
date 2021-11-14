@@ -978,12 +978,11 @@ moves_loop: // When in check, search starts here
     value = bestValue;
     singularQuietLMR = moveCountPruning = false;
 
-    // Indicate PvNodes that are good at a depth <= current depth.
+    // Indicate potentially good PvNodes.
     bool goodPvNode =       PvNode
                          && ttMove
-                         && ttValue > alpha
-                         && (tte->bound() & BOUND_LOWER)
-                         && tte->depth() >= depth;
+                         && ttValue >= alpha
+                         && (tte->bound() & BOUND_LOWER);
 
     // Step 12. Loop through all pseudo-legal moves until no moves remain
     // or a beta cutoff occurs.
